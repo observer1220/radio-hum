@@ -245,10 +245,10 @@ export default {
     try {
       // 直播
       const liveMatch = path.match(/^\/live\/([a-z0-9_-]+)(?:\/([a-z0-9_-]+))?\/playlist\.m3u8$/);
-      if (liveMatch && liveMatch[1] !== "segments") return livePlaylist(request, env, liveMatch[1], liveMatch[2]);
-      if (path === "/live/playlist.m3u8") return livePlaylist(request, env, ALL_CHANNEL, undefined);
+      if (liveMatch && liveMatch[1] !== "segments") return await livePlaylist(request, env, liveMatch[1], liveMatch[2]);
+      if (path === "/live/playlist.m3u8") return await livePlaylist(request, env, ALL_CHANNEL, undefined);
       const segMatch = path.match(/^\/live\/segments\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_.-]+)$/);
-      if (segMatch) return liveSegment(request, env, segMatch[1], segMatch[2]);
+      if (segMatch) return await liveSegment(request, env, segMatch[1], segMatch[2]);
 
       // 公開資料
       if (path === "/api/channels") return json(DIRECTORY, 200, { "cache-control": "public, max-age=300" });
@@ -260,21 +260,21 @@ export default {
       }
 
       // 帳號與付款
-      if (path === "/api/me") return me(request, env);
-      if (path === "/api/admin/users") return adminApi(request, env);
-      if (path === "/api/tracker") return trackerApi(request, env);
-      if (path === "/api/admin/library") return libraryApi(request, env);
+      if (path === "/api/me") return await me(request, env);
+      if (path === "/api/admin/users") return await adminApi(request, env);
+      if (path === "/api/tracker") return await trackerApi(request, env);
+      if (path === "/api/admin/library") return await libraryApi(request, env);
       const keysMatch = path.match(/^\/api\/keys(?:\/(.+))?$/);
-      if (keysMatch) return keysApi(request, env, keysMatch[1] ?? "");
+      if (keysMatch) return await keysApi(request, env, keysMatch[1] ?? "");
 
       if (path === "/auth/google") return googleStart(request, env);
-      if (path === "/auth/google/callback") return googleCallback(request, env);
-      if (path === "/auth/dev") return devLogin(request, env);
+      if (path === "/auth/google/callback") return await googleCallback(request, env);
+      if (path === "/auth/dev") return await devLogin(request, env);
       if (path === "/auth/logout" && request.method === "POST") {
         return new Response(null, { status: 204, headers: { "Set-Cookie": clearSessionCookie(request) } });
       }
 
-      if (path === "/billing/webhook" && request.method === "POST") return handleWebhook(request, env);
+      if (path === "/billing/webhook" && request.method === "POST") return await handleWebhook(request, env);
       if (path === "/billing/checkout" || path === "/billing/portal") {
         if (request.method !== "POST") return json({ error: "method not allowed" }, 405);
         const s = await getSession(request, env);
@@ -285,17 +285,21 @@ export default {
       }
 
       // 頁面
-      if (path === "/" || path === "/player") return page(env, request, "/player.html", { "Content-Security-Policy": "frame-ancestors 'self'" });
-      if (path === "/tracker") return page(env, request, "/tracker.html", { "Cache-Control": "no-store", "Content-Security-Policy": "frame-ancestors 'self'" });
-      if (path === "/admin") return page(env, request, "/admin.html", { "Cache-Control": "no-store", "Content-Security-Policy": "frame-ancestors 'self'" });
+      if (path === "/" || path === "/player") return await page(env, request, "/player.html", { "Content-Security-Policy": "frame-ancestors 'self'" });
+      if (path === "/tracker") return await page(env, request, "/tracker.html", { "Cache-Control": "no-store", "Content-Security-Policy": "frame-ancestors 'self'" });
+      if (path === "/admin") return await page(env, request, "/admin.html", { "Cache-Control": "no-store", "Content-Security-Policy": "frame-ancestors 'self'" });
       const embedMatch = path.match(/^\/embed\/([a-z0-9_-]+)(?:\/([a-z0-9_-]+))?$/);
-      if (embedMatch) return page(env, request, "/embed.html", await embedHeaders(env, url.searchParams.get("key")));
+      if (embedMatch) return await page(env, request, "/embed.html", await embedHeaders(env, url.searchParams.get("key")));
 
       // 其餘交給靜態檔案(player.js、player.css…);沒有就 404
       const asset = await env.ASSETS.fetch(request);
       return asset.status === 404 ? new Response("not found", { status: 404 }) : asset;
     } catch (err) {
       console.error(err);
+      // 最常見的上線漏設:SESSION_SECRET。講清楚,省得你只看到一個 500 不知道從哪查起
+      if (err instanceof Error && err.message.includes("SESSION_SECRET")) {
+        return new Response("server misconfigured: SESSION_SECRET is not set. Run: npx wrangler secret put SESSION_SECRET", { status: 503 });
+      }
       return new Response("server error", { status: 500 });
     }
   },

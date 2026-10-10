@@ -125,6 +125,14 @@ for (const top of fs.readdirSync(LIB).sort()) {
 }
 
 // 來源檔已被刪掉的項目從節目庫移除(R2 上的檔案不會自動刪除)
-const tracks = [...byId.values()].filter((t) => !t.source || seenSources.has(t.source));
+// 兩種情況會從節目庫移除:① 來源檔已被刪掉 ② 轉好的資料夾(hls-output/<id>)已經不在了
+//(例如你手動刪掉舊的測試歌 track-001~003:它們沒有來源檔,以前會永遠留在清單裡,網站就一直顯示)
+const removed = [];
+const tracks = [...byId.values()].filter((t) => {
+  const keep = (!t.source || seenSources.has(t.source)) && fs.existsSync(path.join(OUT, t.id, "index.m3u8"));
+  if (!keep) removed.push(t.id);
+  return keep;
+});
+if (removed.length) console.log(`已從節目庫移除 ${removed.length} 筆(來源或轉檔結果已不存在):${removed.join(", ")}`);
 fs.writeFileSync(CATALOG, `{"tracks":[\n${tracks.map((t) => JSON.stringify(t)).join(",\n")}\n]}\n`);
 console.log(`完成:新轉檔 ${converted} 個,略過 ${skipped} 個,節目庫共 ${tracks.length} 筆。`);
