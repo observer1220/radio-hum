@@ -85,3 +85,37 @@ th { color: var(--muted); font-weight: 500; }
   .channels { grid-template-columns: repeat(2, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) { #play::after { animation: none; } }
+
+/* ===== 播放器頁:整個畫面剛好塞進視窗高度,不需要上下捲動(只作用在 <body class="fit">) ===== */
+body.fit { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
+body.fit header.top { flex: none; padding: 10px 20px; }
+body.fit main.app { flex: 1; min-height: 0; width: 100%; max-width: 1000px; margin: 0 auto; padding: 14px 20px 18px; gap: 20px;
+  display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); align-items: stretch; }
+/* 左:頻道清單(垂直)+ 曲風;頻道很多時只有這一欄自己捲動 */
+body.fit .pick { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 2px; }
+body.fit .pick .label { margin: 0; }
+body.fit .channels { grid-template-columns: 1fr; gap: 8px; }
+body.fit .channel { flex-direction: row; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 14px; }
+body.fit .genres { margin-top: 2px; }
+/* 右:播放區填滿剩下的高度,動畫自己吃掉多出來的空間 */
+body.fit .player { min-height: 0; justify-content: center; gap: 12px; padding: 16px 20px; }
+body.fit canvas#vis { flex: 1 1 0; min-height: 56px; max-height: 200px; height: auto; }
+body.fit .title { min-height: 0; }
+
+/* 手機 / 窄螢幕:頻道與曲風改成橫向滑動,播放區在下面填滿 */
+@media (max-width: 720px) {
+  body.fit header.top { padding: 8px 12px; gap: 6px; }
+  body.fit header .who, body.fit header label.muted { display: none; }
+  body.fit main.app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 10px; padding: 10px 12px 12px; }
+  body.fit .pick { overflow: visible; gap: 8px; padding: 0; }
+  body.fit .pick .label { display: none; }
+  body.fit .channels { display: flex; overflow-x: auto; gap: 8px; scrollbar-width: none; }
+  body.fit .channels::-webkit-scrollbar, body.fit .genres::-webkit-scrollbar { display: none; }
+  body.fit .channel { flex: 0 0 auto; padding: 8px 12px; }
+  body.fit .channel .meta { display: none; }
+  body.fit .genres { flex-wrap: nowrap; overflow-x: auto; margin: 0; scrollbar-width: none; }
+  body.fit .genres .chip { flex: none; height: 32px; }
+  body.fit .player { padding: 12px; gap: 10px; }
+}
+/* 很矮的螢幕(手機橫放):不畫動畫,保證其他內容都放得下 */
+@media (max-height: 520px) { body.fit canvas#vis { display: none; } body.fit .player { gap: 6px; } }

@@ -4,6 +4,7 @@
   audio.preload = 'none';
   const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // 收聽免費、不用登入。登入與付款只用來開通「嵌入到自己網站」的進階功能。
   const state = { me: null, channels: [], channel: null, genre: '', started: false };
 
   // ---------- 小工具 ----------
@@ -14,7 +15,7 @@
       else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
       else n.setAttribute(k, v);
     }
-    for (const kid of kids) n.append(kid);
+    for (const kid of kids) if (kid != null) n.append(kid);
     return n;
   }
   async function api(path, opts) {
@@ -24,7 +25,6 @@
     return data;
   }
   const post = (path, body) => api(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
-  const entitled = () => state.me && state.me.entitled;
   const setStatus = (t, isErr) => { const s = $('status'); s.textContent = t; s.classList.toggle('err', !!isErr); };
 
   // ---------- 播放器 ----------
@@ -36,9 +36,9 @@
     onTrack: (info) => {
       $('title').textContent = info.title;
       $('artist').textContent = info.artist;
-      if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: info.title, artist: info.artist || '測試電台' });
+      if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: info.title, artist: info.artist || 'Radio Hum' });
     },
-    onDenied: () => { refreshMe().then(renderGate); },
+    onDenied: () => { setStatus('無法連線到這個頻道,請重新整理頁面', true); $('play').classList.remove('loading'); },
   });
   audio.addEventListener('playing', () => $('play').classList.remove('loading'));
   audio.addEventListener('play', () => { $('play').classList.add('playing'); $('play').setAttribute('aria-label', '暫停'); $('live').classList.add('on'); });
@@ -72,7 +72,7 @@
     if (!ch) return;
     const g = genreName(ch, state.genre);
     $('where').textContent = ch.name + (g ? ' ・ ' + g : '');
-    document.title = ch.name + (g ? ' ・ ' + g : '') + ' | 測試電台';
+    document.title = ch.name + (g ? ' ・ ' + g : '') + ' | Radio Hum';
   }
 
   function renderMenus() {
@@ -95,7 +95,8 @@
     history.replaceState(null, '', '#' + ch.id + (state.genre ? '/' + state.genre : ''));
     renderWhere();
     renderMenus();
-    if (entitled()) { tune(); player.play(); } else renderGate();
+    tune();
+    player.play();
   }
 
   // ---------- 播放控制 ----------
@@ -103,7 +104,6 @@
   $('play').addEventListener('click', togglePlay);
   function togglePlay() {
     if (!state.channel) return setStatus('先選一個頻道');
-    if (!entitled()) return renderGate();
     if (!audio.paused) return player.pause();
     if (!state.started) tune();
     player.play();
@@ -121,7 +121,7 @@
     togglePlay();
   });
 
-  // ---------- 登入 / 付款 ----------
+  // ---------- 帳號(只為了嵌入功能) ----------
   async function refreshMe() { state.me = await api('/api/me'); return state.me; }
 
   function renderHeader() {
@@ -130,48 +130,19 @@
     $('btn-login').classList.toggle('hidden', me.loggedIn || !me.googleEnabled);
     $('btn-logout').classList.toggle('hidden', !me.loggedIn);
     $('btn-admin').classList.toggle('hidden', !me.isAdmin);
-    $('btn-embed').classList.toggle('hidden', !me.entitled);
+    $('btn-tracker').classList.toggle('hidden', !me.isAdmin);
     $('btn-billing').classList.toggle('hidden', !(me.loggedIn && me.hasBillingPortal));
   }
 
-  function renderGate() {
-    renderHeader();
-    const me = state.me;
-    const gate = $('gate');
-    if (me.entitled) return gate.classList.add('hidden');
-    gate.classList.remove('hidden');
-    $('gate-login').classList.toggle('hidden', me.loggedIn || !me.googleEnabled);
-    $('dev-form').classList.toggle('hidden', me.loggedIn || !me.devLogin);
-    $('gate-subscribe').classList.toggle('hidden', !(me.loggedIn && me.billingEnabled));
-    if (!me.loggedIn) {
-      $('gate-title').textContent = '登入後收聽';
-      $('gate-text').textContent = '請先用 Google 帳號登入。';
-    } else {
-      $('gate-title').textContent = '尚未開通';
-      $('gate-text').textContent = me.billingEnabled
-        ? '訂閱後即可收聽全部頻道,也可以取得嵌入網站的金鑰。已付款但沒開通?請聯絡管理員。(' + me.email + ')'
-        : '你的帳號(' + me.email + ')尚未開通,請聯絡管理員啟用。';
-    }
-  }
-
-  $('gate-subscribe').addEventListener('click', async () => {
-    try { location.href = (await post('/billing/checkout')).url; } catch (e) { setStatus(e.message, true); }
-  });
   $('btn-billing').addEventListener('click', async () => {
     try { location.href = (await post('/billing/portal')).url; } catch (e) { setStatus(e.message, true); }
   });
   $('btn-logout').addEventListener('click', async () => {
     await fetch('/auth/logout', { method: 'POST' });
-    player.pause(); player.teardown();
-    state.started = false;
-    await refreshMe(); renderGate();
-  });
-  $('dev-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    location.href = '/auth/dev?email=' + encodeURIComponent($('dev-email').value);
+    await refreshMe(); renderHeader();
   });
 
-  // ---------- 嵌入金鑰 ----------
+  // ---------- 嵌入功能對話框:依狀態顯示「登入」/「訂閱」/「金鑰管理」 ----------
   async function renderKeys() {
     const { keys } = await api('/api/keys');
     const ch = state.channel ? state.channel.id : 'all';
@@ -188,7 +159,40 @@
         el('pre', { class: 'code' }, stream));
     }) : [el('p', { class: 'muted' }, '還沒有金鑰。')]));
   }
-  $('btn-embed').addEventListener('click', async () => { await renderKeys(); dlg.showModal(); });
+
+  async function openEmbed() {
+    try { await refreshMe(); } catch (e) { setStatus('讀取帳號狀態失敗:' + e.message, true); return; }
+    renderHeader();
+    const me = state.me;
+    const box = $('embed-state');
+    box.replaceChildren();
+    $('embed-keys').classList.add('hidden');
+
+    if (!me.loggedIn) {
+      box.append(el('p', {}, '第一步:登入你的帳號。'));
+      if (me.googleEnabled) box.append(el('a', { class: 'btn primary', href: '/auth/google' }, '用 Google 登入'));
+      if (me.devLogin) {
+        const input = el('input', { type: 'email', placeholder: '開發測試:輸入 email' });
+        box.append(el('form', { class: 'row', onsubmit: (e) => { e.preventDefault(); location.href = '/auth/dev?email=' + encodeURIComponent(input.value); } }, input, el('button', { class: 'btn small' }, '登入')));
+      }
+      if (!me.googleEnabled && !me.devLogin) box.append(el('p', { class: 'muted' }, '登入功能尚未設定。'));
+    } else if (!me.entitled) {
+      box.append(el('p', {}, '你已登入(' + me.email + '),但尚未開通嵌入功能。'));
+      if (me.billingEnabled) {
+        box.append(el('button', { class: 'btn primary', onclick: async () => {
+          try { location.href = (await post('/billing/checkout')).url; } catch (e) { setStatus(e.message, true); }
+        } }, '訂閱開通'));
+        box.append(el('p', { class: 'muted' }, '已付款但沒開通?請聯絡管理員。'));
+      } else {
+        box.append(el('p', { class: 'muted' }, '請聯絡管理員為你的帳號開通。'));
+      }
+    } else {
+      $('embed-keys').classList.remove('hidden');
+      await renderKeys();
+    }
+    dlg.showModal();
+  }
+  $('btn-embed').addEventListener('click', openEmbed);
   $('embed-close').addEventListener('click', () => dlg.close());
   $('key-create').addEventListener('click', async () => {
     try {
@@ -200,10 +204,9 @@
 
   // ---------- 啟動 ----------
   async function init() {
-    const [dir] = await Promise.all([api('/api/channels'), refreshMe()]);
+    const [dir] = await Promise.all([api('/api/channels'), refreshMe().catch(() => null)]);
     state.channels = dir.channels;
-    renderHeader();
-    renderGate();
+    if (state.me) renderHeader();
     if (!state.channels.length) { $('channels').textContent = '目前還沒有頻道。請先放入歌曲並執行 npm run convert。'; return; }
 
     let want = location.hash.slice(1);
@@ -214,7 +217,8 @@
     state.genre = found.genres.some((g) => g.id === gid) ? gid : '';
     renderWhere();
     renderMenus();
-    if (new URLSearchParams(location.search).get('billing') === 'success') setStatus('付款完成,開通可能需要幾秒鐘,稍後請重新整理。');
+    const q = new URLSearchParams(location.search);
+    if (q.get('billing') === 'success') { setStatus('付款完成,開通可能需要幾秒鐘。請點右上角「嵌入到我的網站」。'); }
   }
   init().catch((e) => setStatus('載入失敗:' + e.message, true));
 })();

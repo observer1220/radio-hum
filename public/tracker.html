@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Suno 提示詞管理器</title>
+<title>Suno 提示詞管理 | Radio Hum</title>
 <style>
   :root { --bg:#fff; --text:#111; --muted:#6b6b6b; --line:#e3e3e3; --surface:#f6f6f6; --accent:#111; --ok:#1e8e4e; --warn:#c77d00; --no:#9a9a9a; --danger:#c0392b; }
   * { box-sizing: border-box; }
@@ -56,8 +56,11 @@
 <body>
 <header>
   <h1>Suno 提示詞管理器</h1>
+  <a class="btn small" href="/">回播放器</a>
+  <a class="btn small" href="/admin">使用者後台</a>
   <div id="channelTabs" class="tabs"></div>
   <span class="spacer"></span>
+  <span id="who" class="muted"></span>
   <span id="saved" class="muted"></span>
   <button class="btn small" id="btnCsv" title="用 Excel 開啟">匯出 Excel(CSV)</button>
   <button class="btn small" id="btnJson">備份(JSON)</button>
@@ -71,187 +74,47 @@
     <span id="progressText" class="muted"></span>
     <div class="bar" style="width:140px"><i id="progressBar" style="width:0"></i></div>
   </div>
-  <div id="view"></div>
-  <p class="muted" style="margin-top:32px">資料自動存在這個瀏覽器裡。換電腦、清除瀏覽器資料前,請先按右上角「備份(JSON)」。</p>
+  <div id="view">載入中…</div>
+  <p class="muted" style="margin-top:32px">資料自動存到雲端(只有管理員看得到),換電腦也在。建議偶爾按右上角「備份(JSON)」留一份。</p>
 </main>
 
 <script>
-/* ===================== 資料 ===================== */
-const DEFAULT_CFG = {
- "exclude": "vocals, singing, humming, lyrics, choir, spoken word, rap",
- "channels": {
-  "focus": {
-   "name": "專注",
-   "target": 20,
-   "base": "instrumental bossa nova jazz, nylon guitar, brushed drums, upright bass, warm electric piano, relaxed steady groove, gentle melody, background music for studying, clean warm mix",
-   "axes": {
-    "速度": [
-     "70 bpm",
-     "80 bpm",
-     "90 bpm",
-     "100 bpm"
-    ],
-    "主奏": [
-     "nylon guitar lead",
-     "felt piano lead",
-     "vibraphone lead",
-     "soft flute lead",
-     "muted trumpet lead",
-     "warm Rhodes lead"
-    ],
-    "場景": [
-     "quiet library",
-     "rainy afternoon",
-     "sunny cafe morning",
-     "bookstore corner",
-     "study desk lamp"
-    ],
-    "調性氣質": [
-     "major key, bright and light",
-     "minor key, calm and thoughtful",
-     "mellow and nostalgic"
-    ],
-    "結構": [
-     "soft intro and gentle fade out",
-     "loop-friendly steady middle, no big changes",
-     "sparse arrangement, lots of space"
-    ]
-   }
-  },
-  "drive": {
-   "name": "兜風",
-   "target": 20,
-   "base": "instrumental city pop inspired, funky bass, bright electric piano, clean chorus guitar, tight drums, glossy 80s synth pads, smooth upbeat groove, feel-good driving music",
-   "axes": {
-    "速度": [
-     "100 bpm",
-     "108 bpm",
-     "115 bpm",
-     "122 bpm"
-    ],
-    "主奏": [
-     "saxophone melody",
-     "synth lead melody",
-     "slap bass groove",
-     "jazz guitar melody",
-     "electric piano melody",
-     "marimba accents"
-    ],
-    "場景": [
-     "coastal highway at sunset",
-     "city lights at night",
-     "morning commute",
-     "weekend road trip",
-     "tunnel and neon"
-    ],
-    "質感": [
-     "warm analog tape",
-     "crisp and glossy",
-     "slightly dreamy reverb",
-     "punchy and dry"
-    ],
-    "結構": [
-     "steady groove, no big drops",
-     "gentle build in the middle, stays smooth",
-     "short intro, loop-friendly"
-    ]
-   }
-  },
-  "chill": {
-   "name": "放鬆",
-   "target": 20,
-   "base": "instrumental lo-fi chill, mellow electric piano, soft dusty drums, warm round bass, gentle ambient texture, calm and cozy, relaxing background music, loop-friendly",
-   "axes": {
-    "速度": [
-     "65 bpm",
-     "72 bpm",
-     "80 bpm",
-     "88 bpm"
-    ],
-    "風格偏向": [
-     "lo-fi hip hop",
-     "acoustic guitar folk",
-     "ambient pads",
-     "soft piano with strings",
-     "kalimba and harp",
-     "warm kitchen jazz"
-    ],
-    "場景": [
-     "sunday morning",
-     "rainy window",
-     "warm sunset",
-     "quiet garden",
-     "hotel lobby",
-     "spa room"
-    ],
-    "點綴音": [
-     "vinyl crackle",
-     "light rain",
-     "distant birdsong",
-     "soft wind chimes",
-     "no extra sounds"
-    ],
-    "結構": [
-     "slow evolving texture",
-     "simple repeating motif",
-     "gentle intro, long calm middle"
-    ]
-   }
-  },
-  "night": {
-   "name": "深夜",
-   "target": 20,
-   "base": "instrumental smooth jazz, late night lounge, warm Rhodes piano, slow brushed drums, deep upright bass, soft saxophone, dim intimate mood, relaxed, no vocals",
-   "axes": {
-    "速度": [
-     "55 bpm",
-     "62 bpm",
-     "70 bpm",
-     "76 bpm"
-    ],
-    "主奏": [
-     "muted trumpet lead",
-     "tenor saxophone lead",
-     "jazz guitar lead",
-     "vibraphone lead",
-     "piano trio, no horns",
-     "baritone sax lead"
-    ],
-    "場景": [
-     "empty bar after midnight",
-     "neon city in the rain",
-     "hotel lounge",
-     "quiet street at 2am",
-     "rooftop at night"
-    ],
-    "情緒": [
-     "warm and romantic",
-     "lonely but comforting",
-     "mysterious and cool",
-     "soft and sleepy"
-    ],
-    "結構": [
-     "slow build, never loud",
-     "sparse piano and bass, lots of space",
-     "loop-friendly steady groove"
-    ]
-   }
-  }
- }
-};
-const KEY = 'promptTracker.v1';
-let db;
-try { db = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { db = null; }
-if (!db || !db.cfg) db = { cfg: DEFAULT_CFG, log: [] };
-let channel = Object.keys(db.cfg.channels)[0];
+/* ===================== 資料(存在雲端,只有管理員能讀寫) ===================== */
+let DEFAULT_CFG = null;      // 預設基底與選項,來自伺服器(prompts/axes.json)
+let db = null;               // { cfg, log }
+let version = 0;             // 樂觀鎖版本號:兩個分頁同時編輯時,後存的會被擋下
+let channel = null;
 let view = 'gen';
 let filter = 'all';
+const LEGACY_KEY = 'promptTracker.v1'; // 舊的本機版資料(只用於一次性搬到雲端)
 
-function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(db)); $('saved').textContent = '已自動儲存 ' + new Date().toLocaleTimeString(); }
-  catch (e) { $('saved').textContent = '⚠ 無法儲存(瀏覽器禁止)。請用「備份」下載'; }
-}
 const $ = (id) => document.getElementById(id);
+
+let saving = false, dirty = false, timer = 0;
+function save() {
+  dirty = true;
+  $('saved').textContent = '儲存中…';
+  clearTimeout(timer);
+  timer = setTimeout(flush, 500);
+}
+async function flush() {
+  if (saving) { timer = setTimeout(flush, 300); return; }
+  if (!dirty) return;
+  saving = true; dirty = false;
+  try {
+    const r = await fetch('/api/tracker', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: db, version }) });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 409) { alert('這份資料已經在別的分頁或電腦被更新了。\n為避免蓋掉對方的修改,頁面將重新載入。'); dirty = false; location.reload(); return; }
+    if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+    version = j.version;
+    $('saved').textContent = '已儲存到雲端 ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    dirty = true;
+    $('saved').textContent = '⚠ 儲存失敗:' + e.message + '(稍後會自動重試,或先按「備份」)';
+    timer = setTimeout(flush, 5000);
+  } finally { saving = false; }
+}
+window.addEventListener('beforeunload', (e) => { if (dirty || saving) { e.preventDefault(); e.returnValue = ''; } });
 const cfgOf = (c) => db.cfg.channels[c || channel];
 const logOf = (c) => db.log.filter((r) => r.channel === (c || channel));
 
@@ -453,6 +316,38 @@ function mindmap(ch, count) {
   const wrap = h('div', { style: 'overflow-x:auto' }); wrap.append(svg); return wrap;
 }
 
+
+/* ===================== 歌庫(已上線的歌,唯讀) ===================== */
+let lib = null, libQuery = '', libChannel = '';
+function viewLibrary() {
+  const box = h('div');
+  if (!lib) {
+    box.append(h('p', { class: 'muted' }, '載入中…'));
+    fetch('/api/admin/library').then((r) => r.json()).then((j) => { lib = j; if (view === 'lib') render(); }).catch(() => { box.textContent = '載入失敗'; });
+    return box;
+  }
+  const chName = (id) => (id ? lib.channels[id] || id : '節目');
+  const gName = (id) => (id ? lib.genres[id] || id : '');
+  const mmss = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  const tracks = lib.tracks.filter((t) => (!libChannel || t.channel === libChannel) && (!libQuery || (t.title + ' ' + t.artist + ' ' + t.id).toLowerCase().includes(libQuery.toLowerCase())));
+  const sel = h('select', { onchange: (e) => { libChannel = e.target.value; render(); } }, h('option', { value: '' }, '全部頻道'),
+    ...[...new Set(lib.tracks.map((t) => t.channel))].map((c) => h('option', { value: c }, chName(c))));
+  sel.value = libChannel;
+  const q = h('input', { type: 'text', placeholder: '搜尋曲名 / 創作者', value: libQuery, style: 'max-width:240px' });
+  q.addEventListener('change', () => { libQuery = q.value; render(); });
+  q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { libQuery = q.value; render(); } });
+  const perChannel = {};
+  for (const t of lib.tracks) { const k = chName(t.channel); perChannel[k] = (perChannel[k] || 0) + 1; }
+  const total = lib.tracks.reduce((s, t) => s + t.seconds, 0);
+  box.append(
+    h('div', { class: 'help' }, '這裡是「已經部署上線」的歌(轉檔後要 deploy 才會出現)。共 ' + lib.tracks.length + ' 首、約 ' + Math.round(total / 60) + ' 分鐘:' + Object.entries(perChannel).map(([k, v]) => k + ' ' + v).join('、')),
+    h('div', { class: 'row' }, sel, q, h('span', { class: 'muted' }, '顯示 ' + tracks.length + ' 首(輸入後按 Enter 搜尋)')),
+    h('table', null,
+      h('thead', null, h('tr', null, ['頻道', '曲風', '創作者', '曲名', '長度', 'id'].map((t) => h('th', null, t)))),
+      h('tbody', null, ...tracks.map((t) => h('tr', null, h('td', null, chName(t.channel)), h('td', null, gName(t.genre)), h('td', null, t.artist), h('td', null, t.title), h('td', null, mmss(t.seconds)), h('td', { class: 'id' }, t.id))))));
+  return box;
+}
+
 function viewSettings() {
   const ch = cfgOf();
   const base = h('textarea', { rows: 3 }); base.value = ch.base;
@@ -513,14 +408,64 @@ function renderHeader() {
   const kept = logOf().filter((r) => r.status === 'kept').length, t = cfgOf().target || 20;
   $('progressText').textContent = '留下 ' + kept + ' / 目標 ' + t + '(待聽 ' + logOf().filter((r) => r.status === 'pending').length + ')';
   $('progressBar').style.width = Math.min(100, (kept / t) * 100) + '%';
-  $('viewTabs').replaceChildren(...[['gen', '產生'], ['log', '紀錄'], ['cov', '覆蓋率 & 心智圖'], ['set', '設定']].map(([k, label]) =>
+  $('viewTabs').replaceChildren(...[['gen', '產生'], ['log', '紀錄'], ['cov', '覆蓋率 & 心智圖'], ['lib', '歌庫'], ['set', '設定']].map(([k, label]) =>
     h('button', { class: 'tab' + (view === k ? ' active' : ''), onclick: () => { view = k; render(); } }, label)));
 }
 function render() {
   renderHeader();
-  $('view').replaceChildren({ gen: viewGen, log: viewLog, cov: viewCoverage, set: viewSettings }[view]());
+  $('view').replaceChildren({ gen: viewGen, log: viewLog, cov: viewCoverage, lib: viewLibrary, set: viewSettings }[view]());
 }
-render();
+/* ===================== 登入檢查與啟動 ===================== */
+function showAuth(status, me) {
+  $('view').replaceChildren();
+  const box = h('div', { class: 'card', style: 'max-width:460px;margin:40px auto;text-align:center' });
+  if (status === 401) {
+    box.append(h('h3', null, '請先登入管理員帳號'), h('p', { class: 'muted' }, '這個頁面只有管理員看得到。'));
+    if (me && me.googleEnabled) box.append(h('a', { class: 'btn primary', href: '/auth/google?next=/tracker' }, '用 Google 登入'));
+    if (me && me.devLogin) {
+      const input = h('input', { type: 'text', placeholder: '開發測試:輸入 email' });
+      box.append(h('form', { class: 'row', style: 'justify-content:center', onsubmit: (e) => { e.preventDefault(); location.href = '/auth/dev?email=' + encodeURIComponent(input.value) + '&next=/tracker'; } }, input, h('button', { class: 'btn' }, '登入')));
+    }
+    if (me && !me.googleEnabled && !me.devLogin) box.append(h('p', { class: 'muted' }, '登入功能尚未設定。'));
+  } else {
+    box.append(h('h3', null, '沒有權限'), h('p', { class: 'muted' }, '目前登入的帳號(' + ((me && me.email) || '') + ')不是管理員。管理員帳號要列在 wrangler.toml 的 ADMIN_EMAILS。'),
+      h('button', { class: 'btn', onclick: async () => { await fetch('/auth/logout', { method: 'POST' }); location.reload(); } }, '登出換帳號'));
+  }
+  $('view').append(box);
+}
+
+async function boot() {
+  $('view').textContent = '載入中…';
+  const me = await fetch('/api/me').then((r) => r.json()).catch(() => null);
+  const r = await fetch('/api/tracker');
+  if (r.status === 401 || r.status === 403) return showAuth(r.status, me);
+  if (!r.ok) { $('view').textContent = '載入失敗:HTTP ' + r.status; return; }
+  const j = await r.json();
+  DEFAULT_CFG = j.defaultCfg;
+  version = j.version;
+  db = j.data && j.data.cfg ? j.data : { cfg: JSON.parse(JSON.stringify(DEFAULT_CFG)), log: [] };
+  // 預設設定新增了頻道時,補進來(不動你已經修改過的頻道)
+  for (const [id, c] of Object.entries(DEFAULT_CFG.channels)) if (!db.cfg.channels[id]) db.cfg.channels[id] = JSON.parse(JSON.stringify(c));
+  if (!db.cfg.exclude) db.cfg.exclude = DEFAULT_CFG.exclude;
+  channel = Object.keys(db.cfg.channels)[0];
+  $('who').textContent = j.email;
+  $('saved').textContent = j.updatedAt ? '雲端最後更新 ' + new Date(j.updatedAt).toLocaleString() : '';
+
+  // 一次性搬家:這個瀏覽器如果有舊的「本機版」資料,而雲端還是空的,問要不要上傳
+  if (!j.data) {
+    try {
+      const old = JSON.parse(localStorage.getItem(LEGACY_KEY) || 'null');
+      if (old && Array.isArray(old.log) && old.log.length && confirm('偵測到這個瀏覽器有舊的本機版資料(' + old.log.length + ' 筆紀錄)。要上傳到雲端嗎?')) {
+        db = old;
+        for (const [id, c] of Object.entries(DEFAULT_CFG.channels)) if (!db.cfg.channels[id]) db.cfg.channels[id] = c;
+        channel = Object.keys(db.cfg.channels)[0];
+        save();
+      }
+    } catch (e) { /* ignore */ }
+  }
+  render();
+}
+boot();
 </script>
 </body>
 </html>

@@ -3,26 +3,27 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>測試電台</title>
+<title>Radio Hum</title>
 <link rel="stylesheet" href="/theme.css" />
 <link rel="stylesheet" href="/player.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.17/hls.min.js"></script>
 </head>
-<body>
+<body class="fit">
 <header class="top">
-  <span class="brand">測試電台</span>
+  <span class="brand">Radio Hum</span>
   <span class="spacer"></span>
   <span id="who" class="who"></span>
   <label class="muted">動畫 <select id="vis-style" aria-label="動畫樣式"></select></label>
-  <button id="btn-embed" class="btn small hidden">嵌入 / 串流</button>
+  <button id="btn-embed" class="btn small">嵌入到我的網站</button>
   <button id="btn-billing" class="btn small hidden">訂閱管理</button>
-  <a id="btn-admin" class="btn small hidden" href="/admin">後台</a>
+  <a id="btn-tracker" class="btn small hidden" href="/tracker">提示詞與歌庫</a>
+  <a id="btn-admin" class="btn small hidden" href="/admin">使用者後台</a>
   <button id="btn-logout" class="btn small hidden">登出</button>
-  <a id="btn-login" class="btn primary small hidden" href="/auth/google">用 Google 登入</a>
+  <a id="btn-login" class="btn small hidden" href="/auth/google">登入</a>
 </header>
 
 <main class="app">
-  <section>
+  <section class="pick">
     <h2 class="label">頻道</h2>
     <div id="channels" class="channels"></div>
     <div id="genres" class="genres" aria-label="曲風"></div>
@@ -44,27 +45,26 @@
       <label class="volume">音量 <input id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="音量" /></label>
     </div>
     <div id="status" class="status" role="status"></div>
-
-    <div id="gate" class="gate hidden">
-      <div class="card-box">
-        <h2 id="gate-title"></h2>
-        <p id="gate-text"></p>
-        <a id="gate-login" class="btn primary hidden" href="/auth/google">用 Google 登入</a>
-        <button id="gate-subscribe" class="btn primary hidden">訂閱開通</button>
-        <form id="dev-form" class="row hidden"><input id="dev-email" type="email" placeholder="開發測試:輸入 email" /><button class="btn small">登入</button></form>
-      </div>
-    </div>
   </section>
 </main>
 
 <dialog id="embed-dialog">
-  <h3>嵌入與串流</h3>
-  <p class="muted">每把金鑰可以限制只能在你登記的網站使用。金鑰等同你的付費授權,請勿公開貼在不受控的地方。嵌入網址可加參數:<code>vis=bars|ring|wave|orbs|off</code>、<code>theme=dark</code>。</p>
-  <div id="key-list"></div>
-  <h4>新增金鑰</h4>
-  <div class="row"><input id="key-label" type="text" placeholder="名稱(例如:官網首頁、A 分店)" /></div>
-  <div class="row"><textarea id="key-origins" rows="3" placeholder="允許嵌入的網站(一行一個,例如 https://shop.example.com)。留空 = 不限制網站"></textarea></div>
-  <div class="row"><button id="key-create" class="btn primary">建立金鑰</button><span id="key-msg" class="muted"></span></div>
+  <h3>嵌入到我的網站</h3>
+  <p class="muted">收聽電台本身免費、不用登入。把電台放到你自己的網站或店內系統,是需要訂閱(或由管理員開通)的進階功能。</p>
+
+  <!-- 尚未登入 / 尚未開通時顯示的說明與按鈕 -->
+  <div id="embed-state"></div>
+
+  <!-- 已開通的帳號:管理嵌入金鑰 -->
+  <div id="embed-keys" class="hidden">
+    <p class="muted">每把金鑰可以限制只能在你登記的網站使用。金鑰等同你的付費授權,請勿公開貼在不受控的地方。嵌入網址可加參數:<code>vis=bars|ring|wave|orbs|off</code>、<code>theme=dark</code>。</p>
+    <div id="key-list"></div>
+    <h4>新增金鑰</h4>
+    <div class="row"><input id="key-label" type="text" placeholder="名稱(例如:官網首頁、A 分店)" /></div>
+    <div class="row"><textarea id="key-origins" rows="3" placeholder="允許嵌入的網站(一行一個,例如 https://shop.example.com)。留空 = 不限制網站"></textarea></div>
+    <div class="row"><button id="key-create" class="btn primary">建立金鑰</button><span id="key-msg" class="muted"></span></div>
+  </div>
+
   <div class="row"><button id="embed-close" class="btn">關閉</button></div>
 </dialog>
 

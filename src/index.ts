@@ -1,3 +1,4 @@
+import axesData from "../prompts/axes.json";
 import channelsData from "../channels.json";
 import playlistData from "../playlist.json";
 import {
@@ -42,11 +43,22 @@ const json = (data: unknown, status = 200, headers: Record<string, string> = {})
 async function livePlaylist(request: Request, env: Env, channel: string, genre: string | undefined): Promise<Response> {
   const url = new URL(request.url);
   const key = url.searchParams.get("key");
-  const access = await authorizePlayback(request, env, key);
   const cors: Record<string, string> = {};
   const origin = request.headers.get("Origin");
-  if (access?.via === "key" && origin) cors["Access-Control-Allow-Origin"] = origin;
-  if (!access) return new Response(key ? "invalid or unauthorized key" : "login and subscription required", { status: 401, headers: cors });
+
+  if (key) {
+    // 帶嵌入金鑰:必須是已啟用(付費或後台開通)帳號建立的金鑰,且網站來源在金鑰登記的範圍內
+    const access = await authorizePlayback(request, env, key);
+    if (!access) return new Response("invalid or unauthorized key", { status: 401 });
+    if (origin) cors["Access-Control-Allow-Origin"] = origin;
+  } else {
+    // 免費收聽(不需登入):只開放給我們自己的播放器(同源)與非瀏覽器的用戶端(VLC、手機播放器等)。
+    // 其他網站上的播放器(跨站)沒有金鑰不能用:瀏覽器會標示 Sec-Fetch-Site,而且我們不回 CORS 標頭,所以也讀不到內容。
+    const site = request.headers.get("Sec-Fetch-Site");
+    if (site === "cross-site" || site === "same-site") {
+      return new Response("embedding on other websites requires an embed key", { status: 401 });
+    }
+  }
 
   const scheduler = schedulerFor(TRACKS, channel, genre);
   const win = scheduler?.windowAt(Math.floor(Date.now() / 1000), SEGMENTS_IN_WINDOW);
@@ -167,6 +179,64 @@ async function adminApi(request: Request, env: Env): Promise<Response> {
   return json({ error: "method not allowed" }, 405);
 }
 
+// ---------- 管理員專用:提示詞管理器的雲端資料、歌庫 ----------
+const TRACKER_KEY = "tracker:data";
+interface TrackerStore {
+  version: number;
+  updatedAt: number;
+  data: unknown;
+}
+/** 回傳 session;沒登入 → 401,登入但不是管理員 → 403 */
+async function adminSession(request: Request, env: Env): Promise<{ email: string } | Response> {
+  const s = await getSession(request, env);
+  if (!s) return json({ error: "login required" }, 401);
+  if (!isAdmin(env, s.email)) return json({ error: "admin only", email: s.email }, 403);
+  return { email: s.email };
+}
+
+async function trackerApi(request: Request, env: Env): Promise<Response> {
+  const who = await adminSession(request, env);
+  if (who instanceof Response) return who;
+  const stored = (await env.USERS.get(TRACKER_KEY, "json")) as TrackerStore | null;
+
+  if (request.method === "GET") {
+    return json({ data: stored?.data ?? null, version: stored?.version ?? 0, updatedAt: stored?.updatedAt ?? 0, defaultCfg: axesData, email: who.email });
+  }
+  if (request.method === "PUT") {
+    const text = await request.text();
+    if (text.length > 4_000_000) return json({ error: "資料太大" }, 413);
+    let body: { data?: { cfg?: { channels?: unknown }; log?: unknown }; version?: number };
+    try { body = JSON.parse(text); } catch { return json({ error: "JSON 格式錯誤" }, 400); }
+    if (!body.data || typeof body.data.cfg?.channels !== "object" || !Array.isArray(body.data.log)) return json({ error: "資料格式不正確" }, 400);
+    // 樂觀鎖:兩個分頁(或兩台電腦)同時編輯時,後存的人會收到 409,不會默默蓋掉前一個人的修改
+    if ((stored?.version ?? 0) !== body.version) return json({ error: "資料已在別處更新,請重新整理", version: stored?.version ?? 0 }, 409);
+    const next: TrackerStore = { version: (stored?.version ?? 0) + 1, updatedAt: Date.now(), data: body.data };
+    await env.USERS.put(TRACKER_KEY, JSON.stringify(next));
+    return json({ version: next.version, updatedAt: next.updatedAt });
+  }
+  return json({ error: "method not allowed" }, 405);
+}
+
+/** 已上線的歌庫(來自最近一次部署時打包的 playlist.json) */
+async function libraryApi(request: Request, env: Env): Promise<Response> {
+  const who = await adminSession(request, env);
+  if (who instanceof Response) return who;
+  const channels: Record<string, string> = Object.fromEntries(CHANNELS_CFG.channels.map((c) => [c.id, c.name]));
+  return json({
+    channels,
+    genres: CHANNELS_CFG.genres,
+    tracks: TRACKS.map((t) => ({
+      id: t.id,
+      title: t.title ?? t.id,
+      artist: t.artist ?? "",
+      kind: t.kind ?? "music",
+      channel: t.channel ?? (t.kind === "show" ? "" : "demo"),
+      genre: t.genre ?? "",
+      seconds: Math.round(t.totalDuration),
+    })),
+  });
+}
+
 // ---------- 路由 ----------
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -192,6 +262,8 @@ export default {
       // 帳號與付款
       if (path === "/api/me") return me(request, env);
       if (path === "/api/admin/users") return adminApi(request, env);
+      if (path === "/api/tracker") return trackerApi(request, env);
+      if (path === "/api/admin/library") return libraryApi(request, env);
       const keysMatch = path.match(/^\/api\/keys(?:\/(.+))?$/);
       if (keysMatch) return keysApi(request, env, keysMatch[1] ?? "");
 
@@ -213,8 +285,9 @@ export default {
       }
 
       // 頁面
-      if (path === "/" || path === "/player") return page(env, request, "/player.html");
-      if (path === "/admin") return page(env, request, "/admin.html", { "Cache-Control": "no-store" });
+      if (path === "/" || path === "/player") return page(env, request, "/player.html", { "Content-Security-Policy": "frame-ancestors 'self'" });
+      if (path === "/tracker") return page(env, request, "/tracker.html", { "Cache-Control": "no-store", "Content-Security-Policy": "frame-ancestors 'self'" });
+      if (path === "/admin") return page(env, request, "/admin.html", { "Cache-Control": "no-store", "Content-Security-Policy": "frame-ancestors 'self'" });
       const embedMatch = path.match(/^\/embed\/([a-z0-9_-]+)(?:\/([a-z0-9_-]+))?$/);
       if (embedMatch) return page(env, request, "/embed.html", await embedHeaders(env, url.searchParams.get("key")));
 

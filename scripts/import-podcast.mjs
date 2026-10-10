@@ -27,7 +27,7 @@ const text = (xml, tag) => {
 };
 const safe = (s) => s.replace(/[\/:*?"<>|\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
 
-const res = await fetch(feed, { headers: { "user-agent": "cloudflare-radio-importer" } });
+const res = await fetch(feed, { headers: { "user-agent": "radio-hum-importer" } });
 if (!res.ok) throw new Error(`讀取 RSS 失敗: HTTP ${res.status}`);
 const xml = await res.text();
 
@@ -61,7 +61,7 @@ for (const item of items) {
     continue;
   }
   console.log(`下載:${name}`);
-  const r = await fetch(audioUrl, { headers: { "user-agent": "cloudflare-radio-importer" } });
+  const r = await fetch(audioUrl, { headers: { "user-agent": "radio-hum-importer" } });
   if (!r.ok || !r.body) {
     console.error(`  下載失敗 HTTP ${r.status}`);
     continue;

@@ -20,11 +20,11 @@ bucket_name = "cloudflare-radio-segments"
 # 正式部署前:npx wrangler kv namespace create USERS,再把輸出的 id 填到下面
 [[kv_namespaces]]
 binding = "USERS"
-# id = "貼上 kv namespace 的 id"
+id = "b265ba92a1d347609333813dbb836cfe"
 
 [vars]
 # 有後台權限、且永遠視為已付費的帳號(Google 登入用的 email,逗號分隔)。正式部署前填上你自己的:
-ADMIN_EMAILS = ""
+ADMIN_EMAILS = "observer1220@gmail.com"
 
 # 機密(不要寫在這裡,用 wrangler secret put 設定):
 #   SESSION_SECRET  GOOGLE_CLIENT_ID  GOOGLE_CLIENT_SECRET

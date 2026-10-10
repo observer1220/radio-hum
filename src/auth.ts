@@ -175,6 +175,11 @@ export async function authorizePlayback(request: Request, env: Env, keyParam: st
   return isEntitled(env, s.email, user) ? { email: s.email, via: "session" } : null;
 }
 
+// ---------- 登入後要回到哪一頁(只允許站內路徑,避免被拿去做開放式轉址) ----------
+export function safeNext(raw: string | null | undefined): string {
+  return raw && /^\/(?!\/)[\w\-./?=&%#]*$/.test(raw) ? raw : "/";
+}
+
 // ---------- Google 登入(OAuth 2.0 授權碼流程) ----------
 export function googleRedirectUri(request: Request): string {
   return `${new URL(request.url).origin}/auth/google/callback`;
@@ -193,7 +198,10 @@ export function googleStart(request: Request, env: Env): Response {
     state,
     prompt: "select_account",
   }).toString();
-  return new Response(null, { status: 302, headers: { Location: url.toString(), "Set-Cookie": cookie(request, "oauth_state", state, 600) } });
+  const headers = new Headers({ Location: url.toString() });
+  headers.append("Set-Cookie", cookie(request, "oauth_state", state, 600));
+  headers.append("Set-Cookie", cookie(request, "oauth_next", safeNext(new URL(request.url).searchParams.get("next")), 600));
+  return new Response(null, { status: 302, headers });
 }
 export async function googleCallback(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -228,9 +236,10 @@ export async function googleCallback(request: Request, env: Env): Promise<Respon
   }
 
   await updateUser(env, claims.email, { name: claims.name, lastLogin: Date.now() });
-  const headers = new Headers({ Location: "/" });
+  const headers = new Headers({ Location: safeNext(parseCookies(request)["oauth_next"]) });
   headers.append("Set-Cookie", await sessionCookie(request, env, claims.email, claims.name));
   headers.append("Set-Cookie", cookie(request, "oauth_state", "", 0));
+  headers.append("Set-Cookie", cookie(request, "oauth_next", "", 0));
   return new Response(null, { status: 302, headers });
 }
 
@@ -242,5 +251,5 @@ export async function devLogin(request: Request, env: Env): Promise<Response> {
   const email = url.searchParams.get("email") ?? "";
   if (!/^[^@\s]+@[^@\s]+$/.test(email)) return new Response("用法: /auth/dev?email=you@example.com", { status: 400 });
   await updateUser(env, email, { name: email.split("@")[0], lastLogin: Date.now() });
-  return new Response(null, { status: 302, headers: { Location: "/", "Set-Cookie": await sessionCookie(request, env, email) } });
+  return new Response(null, { status: 302, headers: { Location: safeNext(url.searchParams.get("next")), "Set-Cookie": await sessionCookie(request, env, email) } });
 }

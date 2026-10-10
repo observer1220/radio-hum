@@ -17,15 +17,20 @@
 ## 多頻道、登入與付費、嵌入
 
 **頻道與曲風**:原檔放 `library/<頻道>/<曲風>/檔名.mp3`(曲風資料夾可省略),例如 `library/focus/bossa-nova/Studio Focus - Rainy Desk.mp3`。
-頻道名稱、種類、曲風顯示名稱在 `channels.json` 設定;`npm run convert` 之後,播放器的「種類 → 頻道 → 曲風」選單會自動出現有歌的項目。
+頻道名稱、種類、曲風顯示名稱在 `channels.json` 設定;`npm run convert` 之後,播放器的「頻道 → 曲風」選單會自動出現有歌的項目。
 網址:`/live/<頻道>/playlist.m3u8`、`/live/<頻道>/<曲風>/playlist.m3u8`、`/live/all/playlist.m3u8`(全部混播)。
 
-**存取控制**:聽眾必須用 Google 登入,且符合其一才能收聽:① 後台手動啟用 ② Stripe 訂閱有效 ③ 帳號在 `ADMIN_EMAILS`。
-後台在 `/admin`(只有 `ADMIN_EMAILS` 的帳號進得去)。
+**存取控制**:**收聽免費,不需要登入。** 登入與付款只用來開通「把電台嵌入自己的網站」這個進階功能。
+可以建立嵌入金鑰的帳號,符合其一即可:① 後台手動啟用 ② Stripe 訂閱有效 ③ 帳號在 `ADMIN_EMAILS`。後台在 `/admin`(只有 `ADMIN_EMAILS` 的帳號進得去)。
 
-**嵌入**:已啟用的使用者在播放器右上角「嵌入 / 串流」建立金鑰(可限制允許的網站),取得 iframe 嵌入碼:
-`<iframe src="https://你的網域/embed/focus?key=金鑰&vis=bars" width="100%" height="220" style="border:0" allow="autoplay">`
-可用參數:`vis=bars|ring|wave|orbs|off`、`theme=light`、`accent=色相0~360`。串流網址 `/live/<頻道>/playlist.m3u8?key=金鑰` 可給自訂播放器使用。
+**怎麼防止別人不付費就嵌入?**
+- 沒帶金鑰的串流,只開放給我們自己的播放器(同源)與非瀏覽器的用戶端(VLC、手機播放器);別的網站上的播放器(瀏覽器標示為跨站)會被拒絕,而且我們不回 CORS 標頭,瀏覽器也讀不到內容。
+- 播放器頁與後台頁不允許被別人用 iframe 包起來;`/embed/...` 頁面要有有效金鑰才播得出來,金鑰還可限制只能在登記的網站使用。
+- **限制:** 這擋不住懂技術的人在自己的伺服器上轉播(用 VLC 之類的免費串流再轉出去)。若之後在意,可加 Cloudflare 的 Rate Limiting / Bot 防護。
+
+**嵌入**:已開通的使用者在播放器右上角「嵌入到我的網站」建立金鑰(可限制允許的網站),取得 iframe 嵌入碼:
+`<iframe src="https://你的網域/embed/focus?key=金鑰" width="100%" height="96" style="border:0" allow="autoplay">`
+可用參數:`vis=bars|ring|wave|orbs|off`、`theme=dark`。串流網址 `/live/<頻道>/playlist.m3u8?key=金鑰` 可給自訂播放器使用。
 
 **本機測試**:複製 `.dev.vars.example` 成 `.dev.vars`,開啟 `DEV_LOGIN=1` 後用 `http://localhost:8787/auth/dev?email=任何信箱` 假登入(只限 localhost)。
 
@@ -54,12 +59,19 @@
 空白鍵 = 播放 / 暫停。嵌入網址參數:`vis=bars|ring|wave|orbs|off`、`theme=dark`。建議 iframe 高度 96。
 頻道名稱與說明在 `channels.json`(`freq`、`en`、`tagline` 欄位目前沒有用到,可忽略)。
 
-## Suno 提示詞管理
+## Suno 提示詞與歌庫管理(網站上的 `/tracker`)
 
-**最簡單:雙擊 `prompts/tracker.html`**(用 Chrome / Edge 開,不需要任何指令)。
-按「產生」挑出和以前差最多的提示詞 → 複製到 Suno → 聽完在卡片上按「留下」或「淘汰」。另有:紀錄表、補登舊提示詞、各選項使用次數(覆蓋率)、心智圖、設定(改基底與選項)。
-資料自動存在瀏覽器裡;右上角可「匯出 Excel(CSV)」和「備份(JSON)」,換電腦前請先備份。
-(進階:`npm run prompt -- ...` 指令版仍然可用,資料格式相同,JSON 可互相匯入。)
+管理員登入後,在網站右上角點「提示詞與歌庫」(網址 `/tracker`),不用任何指令:
+- **產生**:挑出和以前用過的組合差最多的提示詞 → 複製到 Suno → 聽完按「留下」或「淘汰」。
+- **紀錄**:所有紀錄表、補登舊提示詞(貼上完整提示詞,自動比對各軸選項)。
+- **覆蓋率 & 心智圖**:每個選項用了幾次,沒用過的標紅。
+- **歌庫**:已經部署上線的歌(頻道、曲風、創作者、曲名、長度),可搜尋、篩選頻道。唯讀;轉檔後要 deploy 才會出現新歌。
+- **設定**:改基底提示詞、各軸選項、目標首數。
+- 右上角可「匯出 Excel(CSV)」與「備份(JSON)」。
+
+資料存在雲端(Cloudflare KV,key 為 `tracker:data`),**只有 `ADMIN_EMAILS` 裡的帳號能讀寫**,換電腦也在。兩個分頁或兩台電腦同時編輯時,後存的人會被擋下並重新載入(不會默默蓋掉對方的修改)。
+預設的基底與選項來自 `prompts/axes.json`(部署時打包);在 `/tracker` 的「設定」改過的內容以雲端為準。
+舊的 `npm run prompt -- ...` 指令版仍可用,但它的紀錄(`prompts/log.json`)在本機,和網站上的雲端資料是分開的;兩邊可用「備份(JSON)/ 還原 / 匯入」互相搬。
 
 ## 部署(deploy.sh)
 
