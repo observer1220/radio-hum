@@ -20,27 +20,35 @@
 頻道名稱、種類、曲風顯示名稱在 `channels.json` 設定;`npm run convert` 之後,播放器的「頻道 → 曲風」選單會自動出現有歌的項目。
 網址:`/live/<頻道>/playlist.m3u8`、`/live/<頻道>/<曲風>/playlist.m3u8`、`/live/all/playlist.m3u8`(全部混播)。
 
-**存取控制**:**收聽免費,不需要登入。** 登入與付款只用來開通「把電台嵌入自己的網站」這個進階功能。
-可以建立嵌入金鑰的帳號,符合其一即可:① 後台手動啟用 ② Stripe 訂閱有效 ③ 帳號在 `ADMIN_EMAILS`。後台在 `/admin`(只有 `ADMIN_EMAILS` 的帳號進得去)。
+**存取控制**:**收聽免費,不需要登入。** 登入只用來開通「把電台嵌入自己的網站」這個進階功能。
+登入與付費權限**交給 auth-hub**(做法同 VEIL / UnderCurrent):Radio Hum 不碰 Google 設定,也不自己管帳號名單。
+
+- 按「登入」→ 導去 auth-hub 用 Google 登入 → 導回來。已經在其他共用 auth-hub 的站登入過的人,會直接登入。
+- 有沒有開通嵌入功能(auth-hub 的 `radio-hum / embed`),由 **auth-hub 後台**開通;付款走你現有的 ECPay 訂閱站。
+- `ADMIN_EMAILS`(`wrangler.toml`)裡的帳號是管理員:可以進 `/tracker`,也永遠可以使用嵌入功能。
+- 登入後的狀態記在 Radio Hum 自己簽章的 cookie(12 小時),之後不再問 auth-hub。權限被撤銷時,最晚 12 小時後(或對方下次按「登入」時)生效。
+- **設定 auth-hub 那一側的步驟**(登記 app / 功能、加入 ALLOWED_ORIGINS)見 [docs/auth-hub-setup.md](docs/auth-hub-setup.md)。沒做的話登入按鈕會導向 auth-hub 但被擋下。
+- **不需要手動設定任何機密:** session 簽章金鑰第一次用到時會自動產生並存進 KV(想自己指定可 `wrangler secret put SESSION_SECRET`)。
 
 **怎麼防止別人不付費就嵌入?**
 - 沒帶金鑰的串流,只開放給我們自己的播放器(同源)與非瀏覽器的用戶端(VLC、手機播放器);別的網站上的播放器(瀏覽器標示為跨站)會被拒絕,而且我們不回 CORS 標頭,瀏覽器也讀不到內容。
-- 播放器頁與後台頁不允許被別人用 iframe 包起來;`/embed/...` 頁面要有有效金鑰才播得出來,金鑰還可限制只能在登記的網站使用。
+- 播放器頁與 `/tracker` 頁不允許被別人用 iframe 包起來;`/embed/...` 頁面要有有效金鑰才播得出來,金鑰還可限制只能在登記的網站使用。
+- **嵌入金鑰的有效期限:** 金鑰建立時記下擁有者的權限到期日(auth-hub 沒給就算 30 天);擁有者每次登入,auth-hub 確認仍有權限就自動延長,**已經沒有權限就立刻失效**。限制:如果擁有者的權限在 auth-hub 後台被撤銷、但他一直沒再登入,金鑰會用到期限為止(最多 30 天)。想做到「撤銷後立刻失效」,需要在 auth-hub 加一支給服務端呼叫的內部查詢(類似現有的 `/internal/entitlements/grant`),見 [docs/auth-hub-setup.md](docs/auth-hub-setup.md) 最後一節。
 - **限制:** 這擋不住懂技術的人在自己的伺服器上轉播(用 VLC 之類的免費串流再轉出去)。若之後在意,可加 Cloudflare 的 Rate Limiting / Bot 防護。
 
 **嵌入**:已開通的使用者在播放器右上角「嵌入到我的網站」建立金鑰(可限制允許的網站),取得 iframe 嵌入碼:
 `<iframe src="https://你的網域/embed/focus?key=金鑰" width="100%" height="96" style="border:0" allow="autoplay">`
 可用參數:`vis=bars|ring|wave|orbs|off`、`theme=dark`。串流網址 `/live/<頻道>/playlist.m3u8?key=金鑰` 可給自訂播放器使用。
 
-**本機測試**:複製 `.dev.vars.example` 成 `.dev.vars`,開啟 `DEV_LOGIN=1` 後用 `http://localhost:8787/auth/dev?email=任何信箱` 假登入(只限 localhost)。
+**本機測試登入**(兩種):
+1. 假登入:複製 `.dev.vars.example` 成 `.dev.vars`(內含 `DEV_LOGIN=1`),用 `http://localhost:8787/auth/dev?email=任何信箱`(加 `&embed=1` 模擬已開通)。只限 localhost。
+2. 完整流程:`node scripts/mock-auth-hub.mjs`(假 auth-hub)+ `npx wrangler dev --var AUTH_HUB_ORIGIN:http://127.0.0.1:9000`,瀏覽器開 `http://127.0.0.1:8787` 按「登入」。`paid@example.com` 視為已開通嵌入功能。
 
 **正式部署前**:
 1. `npx wrangler kv namespace create USERS`,把 id 填進 `wrangler.toml`
 2. `wrangler.toml` 的 `ADMIN_EMAILS` 填你自己的 Google 信箱
-3. `wrangler secret put SESSION_SECRET`(隨機長字串)、`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`
-4. Google Cloud Console 建 OAuth 用戶端 ID(網頁應用程式),已授權重新導向 URI 填 `https://你的網域/auth/google/callback`
-5. 收費:Stripe 建訂閱商品,`wrangler secret put STRIPE_SECRET_KEY`、`STRIPE_PRICE_ID`;Stripe 後台新增 Webhook 指向 `https://你的網域/billing/webhook`,事件選 `checkout.session.completed`、`customer.subscription.updated`、`customer.subscription.deleted`,把簽章密鑰設為 `STRIPE_WEBHOOK_SECRET`
-6. **正式環境不要設 `DEV_LOGIN`**
+3. 做完 [docs/auth-hub-setup.md](docs/auth-hub-setup.md) 的 auth-hub 設定(登記 app、加入 ALLOWED_ORIGINS、開通使用者)
+4. **正式環境不要設 `DEV_LOGIN`**(`deploy.sh` 也會擋)
 
 ## 介面
 
@@ -75,7 +83,13 @@
 
 ## 部署(deploy.sh)
 
-`./deploy.sh`(Windows 請在 Git Bash 執行):檢查 → 轉檔 → 上傳音訊到 R2 → 部署。已綁定 GitHub + Cloudflare 時會 commit 並 push,由 Cloudflare 自動部署;沒有 git 遠端或加 `--direct` 則直接 `wrangler deploy`。`./deploy.sh --help` 看全部選項,`--dry-run` 只預覽不執行。
+流程參考 UnderCurrent / VEIL。`./deploy.sh`(Windows 請在 Git Bash 執行):轉檔 → 上傳新歌到 R2 → (改到程式才)型別檢查與測試 → commit(訊息自動帶時間戳記)→ 推到目前所在的分支,Cloudflare 自動部署。
+
+- `./deploy.sh dev` 推 dev 分支(預覽網址);`./deploy.sh main` 推正式環境,**會多問一次確認**。
+- `./deploy.sh --direct`:不經過 git,直接 `wrangler deploy`(第一次建立 Worker、緊急修正用)。
+- `--skip-songs` 略過轉檔與上傳、`--full` 一律跑測試、`--dry-run` 只預覽、`-m "訊息"` 自訂 commit 訊息。
+- 只連一次 GitHub(推送時),所以 SSH 密碼只需要輸入一次。**不要把輸出導到檔案(例如 tee)**,那樣 git 會以為不在終端機裡,改跳出另一個視窗問密碼。
+- 失敗時會說清楚卡在哪一步,並等你按 Enter 才關視窗。
 
 ## 日常流程
 

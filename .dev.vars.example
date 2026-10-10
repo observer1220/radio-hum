@@ -1,16 +1,15 @@
-# 複製成 .dev.vars(本機專用,不要上傳到任何地方),再填入值
-SESSION_SECRET=換成一長串隨機字元至少32個
+# 複製成 .dev.vars(本機專用,不要上傳到任何地方),再填入值。
+# 登入與付費權限交給 auth-hub,Radio Hum 本身不需要 Google 或 Stripe 的任何金鑰。
+
+# 可進 /tracker、並永遠可使用嵌入功能的帳號(正式環境在 wrangler.toml 的 ADMIN_EMAILS)
 ADMIN_EMAILS=admin@example.com
 
-# 本機測試用假登入:開啟後可用 http://localhost:8787/auth/dev?email=任何信箱 登入。正式環境絕對不要設。
+# 本機測試用假登入:開啟後可用 http://localhost:8787/auth/dev?email=任何信箱 登入(&embed=1 模擬已開通)。
+# 正式環境絕對不要設。
 DEV_LOGIN=1
 
-# Google 登入(Google Cloud Console → API 與服務 → 憑證 → OAuth 用戶端 ID,類型「網頁應用程式」)
-# 已授權的重新導向 URI 要加:http://localhost:8787/auth/google/callback(正式站再加上你的網域)
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
+# 選填:自己指定 session 簽章金鑰(不設的話第一次用到時會自動產生並存進 KV)
+# SESSION_SECRET=換成一長串隨機字元至少32個
 
-# Stripe(先用測試模式的金鑰 sk_test_...)
-STRIPE_SECRET_KEY=
-STRIPE_PRICE_ID=
-STRIPE_WEBHOOK_SECRET=
+# 想在本機走完整的登入流程:執行 node scripts/mock-auth-hub.mjs,並用
+#   npx wrangler dev --var AUTH_HUB_ORIGIN:http://127.0.0.1:9000

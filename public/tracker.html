@@ -57,7 +57,7 @@
 <header>
   <h1>Suno 提示詞管理器</h1>
   <a class="btn small" href="/">回播放器</a>
-  <a class="btn small" href="/admin">使用者後台</a>
+  <a class="btn small" id="hubLink" href="#" target="_blank" rel="noopener">開通使用者(auth-hub)</a>
   <div id="channelTabs" class="tabs"></div>
   <span class="spacer"></span>
   <span id="who" class="muted"></span>
@@ -421,13 +421,12 @@ function showAuth(status, me) {
   const box = h('div', { class: 'card', style: 'max-width:460px;margin:40px auto;text-align:center' });
   if (status === 401) {
     box.append(h('h3', null, '請先登入管理員帳號'), h('p', { class: 'muted' }, '這個頁面只有管理員看得到。'));
-    if (me && me.googleEnabled) box.append(h('a', { class: 'btn primary', href: '/auth/google?next=/tracker' }, '用 Google 登入'));
+    box.append(h('a', { class: 'btn primary', href: '/auth/login?next=/tracker' }, '用 Google 登入'));
     if (me && me.devLogin) {
       const input = h('input', { type: 'text', placeholder: '開發測試:輸入 email' });
       box.append(h('form', { class: 'row', style: 'justify-content:center', onsubmit: (e) => { e.preventDefault(); location.href = '/auth/dev?email=' + encodeURIComponent(input.value) + '&next=/tracker'; } }, input, h('button', { class: 'btn' }, '登入')));
     }
-    if (me && !me.googleEnabled && !me.devLogin) box.append(h('p', { class: 'muted' }, '登入功能尚未設定。'));
-  } else {
+      } else {
     box.append(h('h3', null, '沒有權限'), h('p', { class: 'muted' }, '目前登入的帳號(' + ((me && me.email) || '') + ')不是管理員。管理員帳號要列在 wrangler.toml 的 ADMIN_EMAILS。'),
       h('button', { class: 'btn', onclick: async () => { await fetch('/auth/logout', { method: 'POST' }); location.reload(); } }, '登出換帳號'));
   }
@@ -449,6 +448,7 @@ async function boot() {
   if (!db.cfg.exclude) db.cfg.exclude = DEFAULT_CFG.exclude;
   channel = Object.keys(db.cfg.channels)[0];
   $('who').textContent = j.email;
+  if (me && me.adminConsoleUrl) $('hubLink').href = me.adminConsoleUrl;
   $('saved').textContent = j.updatedAt ? '雲端最後更新 ' + new Date(j.updatedAt).toLocaleString() : '';
 
   // 一次性搬家:這個瀏覽器如果有舊的「本機版」資料,而雲端還是空的,問要不要上傳

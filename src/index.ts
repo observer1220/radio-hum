@@ -3,26 +3,21 @@ import channelsData from "../channels.json";
 import playlistData from "../playlist.json";
 import {
   authorizePlayback,
-  clearSessionCookie,
   createKey,
   deleteKey,
   devLogin,
   getKey,
   getSession,
-  getUser,
-  googleCallback,
-  googleStart,
+  handleAuth,
+  hubOrigin,
   isAdmin,
-  isEntitled,
+  KEY_GRACE_MS,
   listKeys,
-  normEmail,
   normalizeOrigins,
   signToken,
-  updateUser,
+  subscribeUrl,
   verifyToken,
-  type UserRecord,
 } from "./auth";
-import { billingEnabled, createCheckout, createPortal, handleWebhook } from "./billing";
 import { ALL_CHANNEL, buildDirectory, schedulerFor, type CatalogTrack, type ChannelsConfig } from "./channels";
 import type { Env } from "./env";
 
@@ -118,63 +113,32 @@ async function embedHeaders(env: Env, key: string | null): Promise<Record<string
 
 // ---------- API ----------
 async function me(request: Request, env: Env): Promise<Response> {
-  const base = { billingEnabled: billingEnabled(env), googleEnabled: !!env.GOOGLE_CLIENT_ID, devLogin: env.DEV_LOGIN === "1" };
+  const url = new URL(request.url);
+  const base = {
+    devLogin: env.DEV_LOGIN === "1",
+    subscribeUrl: subscribeUrl(env, url), // 「前往訂閱」
+    adminConsoleUrl: `${hubOrigin(env, url)}/admin`, // 開通 / 關閉使用者在 auth-hub 後台做
+  };
   const s = await getSession(request, env);
   if (!s) return json({ ...base, loggedIn: false, entitled: false, isAdmin: false });
-  const user = await getUser(env, s.email);
-  return json({
-    ...base,
-    loggedIn: true,
-    email: s.email,
-    name: s.name ?? user?.name ?? "",
-    entitled: isEntitled(env, s.email, user),
-    isAdmin: isAdmin(env, s.email),
-    hasBillingPortal: !!user?.stripeCustomerId,
-  });
+  const admin = isAdmin(env, s.email);
+  return json({ ...base, loggedIn: true, email: s.email, name: s.name ?? "", entitled: s.embed || admin, isAdmin: admin });
 }
 
 async function keysApi(request: Request, env: Env, rest: string): Promise<Response> {
   const s = await getSession(request, env);
   if (!s) return json({ error: "login required" }, 401);
-  if (!isEntitled(env, s.email, await getUser(env, s.email))) return json({ error: "subscription required" }, 403);
+  if (!(s.embed || isAdmin(env, s.email))) return json({ error: "尚未開通嵌入功能" }, 403);
 
   if (request.method === "GET") return json({ keys: await listKeys(env, s.email) });
   if (request.method === "POST") {
     const body = (await request.json().catch(() => ({}))) as { label?: string; origins?: unknown };
-    const key = await createKey(env, s.email, String(body.label ?? ""), normalizeOrigins(body.origins));
+    const until = s.embedUntil || Date.now() + KEY_GRACE_MS;
+    const key = await createKey(env, s.email, String(body.label ?? ""), normalizeOrigins(body.origins), until);
     return key ? json({ key }) : json({ error: "最多 5 把金鑰,請先刪除不用的" }, 400);
   }
   if (request.method === "DELETE" && rest) {
     return (await deleteKey(env, s.email, rest)) ? json({ ok: true }) : json({ error: "not found" }, 404);
-  }
-  return json({ error: "method not allowed" }, 405);
-}
-
-async function adminApi(request: Request, env: Env): Promise<Response> {
-  const s = await getSession(request, env);
-  if (!s || !isAdmin(env, s.email)) return json({ error: "forbidden" }, 403);
-
-  if (request.method === "GET") {
-    const users: UserRecord[] = [];
-    let cursor: string | undefined;
-    do {
-      const page = await env.USERS.list({ prefix: "user:", cursor });
-      for (const k of page.keys) {
-        const u = (await env.USERS.get(k.name, "json")) as UserRecord | null;
-        if (u) users.push(u);
-      }
-      cursor = page.list_complete ? undefined : page.cursor;
-    } while (cursor && users.length < 2000);
-    users.sort((a, b) => (b.lastLogin ?? 0) - (a.lastLogin ?? 0));
-    return json({ users: users.map((u) => ({ ...u, entitled: isEntitled(env, u.email, u) })) });
-  }
-  if (request.method === "POST") {
-    const body = (await request.json().catch(() => ({}))) as { email?: string; adminGrant?: boolean; note?: string };
-    if (!body.email || !/^[^@\s]+@[^@\s]+$/.test(body.email)) return json({ error: "email 格式錯誤" }, 400);
-    const patch: Partial<UserRecord> = {};
-    if (typeof body.adminGrant === "boolean") patch.adminGrant = body.adminGrant;
-    if (typeof body.note === "string") patch.note = body.note.slice(0, 200);
-    return json({ user: await updateUser(env, normEmail(body.email), patch) });
   }
   return json({ error: "method not allowed" }, 405);
 }
@@ -259,35 +223,19 @@ export default {
         return json({ title: t.title ?? t.id, artist: t.artist ?? "", genre: t.genre ?? "", channel: t.channel ?? "" }, 200, { "cache-control": "public, max-age=86400" });
       }
 
-      // 帳號與付款
+      // 帳號(登入交給 auth-hub)
       if (path === "/api/me") return await me(request, env);
-      if (path === "/api/admin/users") return await adminApi(request, env);
       if (path === "/api/tracker") return await trackerApi(request, env);
       if (path === "/api/admin/library") return await libraryApi(request, env);
       const keysMatch = path.match(/^\/api\/keys(?:\/(.+))?$/);
       if (keysMatch) return await keysApi(request, env, keysMatch[1] ?? "");
 
-      if (path === "/auth/google") return googleStart(request, env);
-      if (path === "/auth/google/callback") return await googleCallback(request, env);
+      if (path === "/auth/login" || path === "/auth/callback" || path === "/auth/logout") return await handleAuth(request, env, url);
       if (path === "/auth/dev") return await devLogin(request, env);
-      if (path === "/auth/logout" && request.method === "POST") {
-        return new Response(null, { status: 204, headers: { "Set-Cookie": clearSessionCookie(request) } });
-      }
-
-      if (path === "/billing/webhook" && request.method === "POST") return await handleWebhook(request, env);
-      if (path === "/billing/checkout" || path === "/billing/portal") {
-        if (request.method !== "POST") return json({ error: "method not allowed" }, 405);
-        const s = await getSession(request, env);
-        if (!s) return json({ error: "login required" }, 401);
-        if (!billingEnabled(env)) return json({ error: "付款尚未設定" }, 503);
-        const target = path === "/billing/checkout" ? await createCheckout(request, env, s.email) : await createPortal(request, env, s.email);
-        return target ? json({ url: target }) : json({ error: "找不到付款紀錄" }, 404);
-      }
 
       // 頁面
       if (path === "/" || path === "/player") return await page(env, request, "/player.html", { "Content-Security-Policy": "frame-ancestors 'self'" });
       if (path === "/tracker") return await page(env, request, "/tracker.html", { "Cache-Control": "no-store", "Content-Security-Policy": "frame-ancestors 'self'" });
-      if (path === "/admin") return await page(env, request, "/admin.html", { "Cache-Control": "no-store", "Content-Security-Policy": "frame-ancestors 'self'" });
       const embedMatch = path.match(/^\/embed\/([a-z0-9_-]+)(?:\/([a-z0-9_-]+))?$/);
       if (embedMatch) return await page(env, request, "/embed.html", await embedHeaders(env, url.searchParams.get("key")));
 
@@ -296,10 +244,6 @@ export default {
       return asset.status === 404 ? new Response("not found", { status: 404 }) : asset;
     } catch (err) {
       console.error(err);
-      // 最常見的上線漏設:SESSION_SECRET。講清楚,省得你只看到一個 500 不知道從哪查起
-      if (err instanceof Error && err.message.includes("SESSION_SECRET")) {
-        return new Response("server misconfigured: SESSION_SECRET is not set. Run: npx wrangler secret put SESSION_SECRET", { status: 503 });
-      }
       return new Response("server error", { status: 500 });
     }
   },

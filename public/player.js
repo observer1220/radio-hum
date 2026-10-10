@@ -127,18 +127,15 @@
   function renderHeader() {
     const me = state.me;
     $('who').textContent = me.loggedIn ? me.name || me.email : '';
-    $('btn-login').classList.toggle('hidden', me.loggedIn || !me.googleEnabled);
+    $('btn-login').classList.toggle('hidden', me.loggedIn); // 沒登入就一定看得到登入按鈕
     $('btn-logout').classList.toggle('hidden', !me.loggedIn);
     $('btn-admin').classList.toggle('hidden', !me.isAdmin);
+    if (me.adminConsoleUrl) $('btn-admin').href = me.adminConsoleUrl; // 開通 / 關閉使用者在 auth-hub 後台做
     $('btn-tracker').classList.toggle('hidden', !me.isAdmin);
-    $('btn-billing').classList.toggle('hidden', !(me.loggedIn && me.hasBillingPortal));
   }
 
-  $('btn-billing').addEventListener('click', async () => {
-    try { location.href = (await post('/billing/portal')).url; } catch (e) { setStatus(e.message, true); }
-  });
   $('btn-logout').addEventListener('click', async () => {
-    await fetch('/auth/logout', { method: 'POST' });
+    await fetch('/auth/logout', { method: 'POST' }); // 只登出 Radio Hum,不影響其他共用 auth-hub 的站
     await refreshMe(); renderHeader();
   });
 
@@ -152,6 +149,7 @@
       const stream = location.origin + '/live/' + ch + (state.genre ? '/' + state.genre : '') + '/playlist.m3u8?key=' + k.key;
       return el('div', { class: 'keyitem' },
         el('div', { class: 'row' }, el('strong', {}, k.label), el('span', { class: 'muted' }, k.origins.length ? k.origins.join(', ') : '不限網站'),
+          el('span', { class: 'muted' }, state.me.isAdmin ? '不會過期' : '有效至 ' + new Date(k.entitledUntil).toLocaleDateString() + '(登入時自動延長)'),
           el('button', { class: 'btn small danger', onclick: async () => { if (confirm('刪除後使用這把金鑰的網站會立刻停止播放,確定?')) { await api('/api/keys/' + k.key, { method: 'DELETE' }); renderKeys(); } } }, '刪除')),
         el('div', { class: 'muted' }, '目前所選頻道的 iframe 嵌入碼:'),
         el('pre', { class: 'code' }, iframe),
@@ -170,22 +168,16 @@
 
     if (!me.loggedIn) {
       box.append(el('p', {}, '第一步:登入你的帳號。'));
-      if (me.googleEnabled) box.append(el('a', { class: 'btn primary', href: '/auth/google' }, '用 Google 登入'));
+      box.append(el('a', { class: 'btn primary', href: '/auth/login?next=/' }, '用 Google 登入'));
       if (me.devLogin) {
         const input = el('input', { type: 'email', placeholder: '開發測試:輸入 email' });
         box.append(el('form', { class: 'row', onsubmit: (e) => { e.preventDefault(); location.href = '/auth/dev?email=' + encodeURIComponent(input.value); } }, input, el('button', { class: 'btn small' }, '登入')));
       }
-      if (!me.googleEnabled && !me.devLogin) box.append(el('p', { class: 'muted' }, '登入功能尚未設定。'));
     } else if (!me.entitled) {
       box.append(el('p', {}, '你已登入(' + me.email + '),但尚未開通嵌入功能。'));
-      if (me.billingEnabled) {
-        box.append(el('button', { class: 'btn primary', onclick: async () => {
-          try { location.href = (await post('/billing/checkout')).url; } catch (e) { setStatus(e.message, true); }
-        } }, '訂閱開通'));
-        box.append(el('p', { class: 'muted' }, '已付款但沒開通?請聯絡管理員。'));
-      } else {
-        box.append(el('p', { class: 'muted' }, '請聯絡管理員為你的帳號開通。'));
-      }
+      if (me.subscribeUrl) box.append(el('a', { class: 'btn primary', href: me.subscribeUrl, target: '_blank', rel: 'noopener' }, '前往訂閱'));
+      box.append(el('p', { class: 'muted' }, '已付款但還沒開通?請聯絡管理員,在 auth-hub 後台開通這個帳號的「radio-hum / embed」。開通後重新按一次「登入」就會生效。'));
+      box.append(el('button', { class: 'btn small', onclick: () => { location.href = '/auth/login?next=/'; } }, '我已開通,重新確認'));
     } else {
       $('embed-keys').classList.remove('hidden');
       await renderKeys();
@@ -217,8 +209,6 @@
     state.genre = found.genres.some((g) => g.id === gid) ? gid : '';
     renderWhere();
     renderMenus();
-    const q = new URLSearchParams(location.search);
-    if (q.get('billing') === 'success') { setStatus('付款完成,開通可能需要幾秒鐘。請點右上角「嵌入到我的網站」。'); }
   }
   init().catch((e) => setStatus('載入失敗:' + e.message, true));
 })();

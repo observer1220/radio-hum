@@ -16,17 +16,26 @@ bucket_name = "cloudflare-radio-segments"
 # 本機測試用 wrangler dev 時,wrangler 會自動用本機模擬的 R2。
 # 正式部署:wrangler r2 bucket create cloudflare-radio-segments
 
-# 使用者、訂閱狀態、嵌入金鑰。本機開發會自動用模擬的 KV。
+# 嵌入金鑰、提示詞管理器的資料、(自動產生的)session 簽章金鑰。本機開發會自動用模擬的 KV。
 # 正式部署前:npx wrangler kv namespace create USERS,再把輸出的 id 填到下面
 [[kv_namespaces]]
 binding = "USERS"
 id = "b265ba92a1d347609333813dbb836cfe"
 
-[vars]
-# 有後台權限、且永遠視為已付費的帳號(Google 登入用的 email,逗號分隔)。正式部署前填上你自己的:
-ADMIN_EMAILS = "observer1220@gmail.com"
+# 登入與付費權限交給 auth-hub(做法同 VEIL / UnderCurrent):Radio Hum 不碰 Google 設定,也不自己管帳號名單。
+# 同帳號的 workers.dev 之間不能直接 fetch(會被 Cloudflare 擋下,error 1042),所以要走 service binding。
+# 前提:auth-hub 已經登記 app「radio-hum」與功能「embed」,並把這個網站加進 ALLOWED_ORIGINS(見 docs/auth-hub-setup.md)。
+[[services]]
+binding = "AUTH_HUB"
+service = "auth-hub"
 
-# 機密(不要寫在這裡,用 wrangler secret put 設定):
-#   SESSION_SECRET  GOOGLE_CLIENT_ID  GOOGLE_CLIENT_SECRET
-#   STRIPE_SECRET_KEY  STRIPE_WEBHOOK_SECRET  STRIPE_PRICE_ID
+[vars]
+# 可以進 /tracker(提示詞與歌庫管理)、且永遠可以使用嵌入功能的帳號(逗號分隔)。其他人的嵌入權限由 auth-hub 後台開通。
+ADMIN_EMAILS = "observer1220@gmail.com"
+# 以下三個都有預設值,要改才需要取消註解:
+# AUTH_APP = "radio-hum"          # 在 auth-hub 登記的服務 slug
+# AUTH_FEATURE = "embed"          # 在 auth-hub 登記的付費功能 slug
+# SUBSCRIBE_URL = "https://pay.kentshen.com/"   # 「前往訂閱」按鈕的網址
+
+# 不需要手動設定任何機密:session 簽章金鑰第一次用到時會自動產生(想自己指定可 wrangler secret put SESSION_SECRET)。
 # 本機開發請複製 .dev.vars.example 成 .dev.vars 再填。
