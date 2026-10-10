@@ -15,13 +15,18 @@
 #   --direct               不經 GitHub,直接 wrangler deploy
 #   --no-push              只 commit,不 push
 #   --dry-run              只顯示會做什麼,不真的執行(也不會因設定未完成而中止)
+#   --no-pause             結束時不要等按鍵(預設:雙擊開啟的視窗,結束前會停住讓你看結果;失敗時一律停住)
 #   -h, --help             顯示說明
 #
 # Windows:請在「Git Bash」裡執行(PowerShell 裡的 bash 可能指到沒有安裝好的 WSL)。
 set -euo pipefail
+set +H   # 關閉 history expansion:有些環境會把雙引號裡的 ! 誤判成「指令歷史」而語法錯誤
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-SKIP_CONVERT=0; SKIP_UPLOAD=0; DIRECT=0; NO_PUSH=0; DRY=0; MSG=""
+# 所有輸出同時存到 deploy.log(已被 .gitignore 排除),視窗關掉後也查得到發生了什麼事
+exec > >(tee deploy.log) 2>&1
+
+SKIP_CONVERT=0; SKIP_UPLOAD=0; DIRECT=0; NO_PUSH=0; DRY=0; NO_PAUSE=0; MSG=""
 usage() { sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; }
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -31,13 +36,15 @@ while [ $# -gt 0 ]; do
     --direct) DIRECT=1 ;;
     --no-push) NO_PUSH=1 ;;
     --dry-run) DRY=1 ;;
+    --no-pause) NO_PAUSE=1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "未知的選項:$1(用 --help 看說明)" >&2; exit 1 ;;
   esac
   shift
 done
 
-say()  { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
+STEP="啟動"
+say()  { STEP="$*"; printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 ok()   { printf '\033[32m✓ %s\033[0m\n' "$*"; }
 warn() { printf '\033[33m! %s\033[0m\n' "$*"; }
 die()  { printf '\033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
@@ -45,6 +52,20 @@ run()  { if [ "$DRY" = 1 ]; then echo "[dry-run] $*"; else "$@"; fi; }
 # 設定問題:正式執行時中止;dry-run 只提醒
 problem() { if [ "$DRY" = 1 ]; then warn "(dry-run 只提醒)$*"; else die "$*"; fi; }
 need() { command -v "$1" >/dev/null 2>&1 || die "找不到 $1,請先安裝"; }
+
+# 不管成功或失敗都會執行:失敗時說清楚卡在哪一步;
+# 如果是「雙擊 / 另開視窗」執行的(SHLVL<=1),或失敗了,就停住等你按鍵,不然視窗一關就看不到訊息
+on_exit() {
+  local code=$?
+  if [ "$code" -ne 0 ]; then
+    printf '\n\033[31m✗ 失敗:卡在「%s」(結束代碼 %s)。完整紀錄:%s/deploy.log\033[0m\n' "$STEP" "$code" "$PWD"
+  fi
+  if [ "$NO_PAUSE" != 1 ] && [ -t 0 ] && { [ "$code" -ne 0 ] || [ "${SHLVL:-1}" -le 1 ]; }; then
+    read -r -n 1 -s -p $'\n按任意鍵關閉視窗…' || true
+    echo
+  fi
+}
+trap on_exit EXIT
 
 # ---------------------------------------------------------------- 1. 環境與設定檢查
 say "1/5 檢查環境與設定"
@@ -61,6 +82,18 @@ if grep -Eq '^[[:space:]]*DEV_LOGIN' wrangler.toml; then
   problem "wrangler.toml 裡有 DEV_LOGIN。這是本機測試用的假登入,正式環境絕對不能開"
 fi
 [ -f playlist.json ] || problem "找不到 playlist.json,請先放歌並執行轉檔"
+
+# 走 GitHub 流程時,先確認連得上遠端(讀取權限)。這是最常失敗、也最浪費時間的一步
+if [ "$DIRECT" = 0 ] && git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git remote get-url origin >/dev/null 2>&1; then
+  ORIGIN="$(git remote get-url origin)"
+  if ! GIT_TERMINAL_PROMPT=0 timeout 25 git ls-remote origin >/dev/null 2>&1; then
+    problem "連不上 GitHub 遠端:$ORIGIN
+   常見原因:① SSH 金鑰沒有加到 GitHub(或有密碼、沒載入 ssh-agent) ② repo 名稱或帳號打錯 ③ 還沒登入。
+   最簡單的修法(Windows 建議):改用 HTTPS,第一次 push 會跳出瀏覽器登入,之後就記住了:
+     git remote set-url origin https://github.com/你的帳號/你的repo.git
+   或者先不經 GitHub,直接部署:./deploy.sh --direct"
+  fi
+fi
 ok "設定檢查完成"
 
 # ---------------------------------------------------------------- 2. 型別檢查與測試
@@ -102,7 +135,7 @@ case "$BRANCH" in main|master) ;; *) warn "目前在分支「$BRANCH」。Cloudf
 
 # 機密不能進 git
 if git ls-files --error-unmatch .dev.vars >/dev/null 2>&1; then
-  problem ".dev.vars 已被 git 追蹤!請先執行 git rm --cached .dev.vars,並確認 .gitignore 有列入"
+  problem ".dev.vars 已被 git 追蹤。請先執行 git rm --cached .dev.vars,並確認 .gitignore 有列入"
 fi
 LEAK="$(git ls-files -co --exclude-standard | grep -v '^public/.*\.js$\|^package-lock.json$' \
   | xargs grep -IlE 'sk_(live|test)_[A-Za-z0-9]{16,}|GOCSPX-[A-Za-z0-9_-]{10,}|whsec_[A-Za-z0-9]{16,}|-----BEGIN [A-Z ]*PRIVATE KEY' 2>/dev/null || true)"
