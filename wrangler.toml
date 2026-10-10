@@ -1,0 +1,32 @@
+name = "cloudflare-radio"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+# 播放器頁面等靜態檔案放在 public/。run_worker_first = true:所有請求都先進 Worker,
+# 由 Worker 決定要不要登入、要不要加 CSP 標頭,再轉給 ASSETS 讀檔。
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+html_handling = "none"
+
+[[r2_buckets]]
+binding = "RADIO_BUCKET"
+bucket_name = "cloudflare-radio-segments"
+# 本機測試用 wrangler dev 時,wrangler 會自動用本機模擬的 R2。
+# 正式部署:wrangler r2 bucket create cloudflare-radio-segments
+
+# 使用者、訂閱狀態、嵌入金鑰。本機開發會自動用模擬的 KV。
+# 正式部署前:npx wrangler kv namespace create USERS,再把輸出的 id 填到下面
+[[kv_namespaces]]
+binding = "USERS"
+# id = "貼上 kv namespace 的 id"
+
+[vars]
+# 有後台權限、且永遠視為已付費的帳號(Google 登入用的 email,逗號分隔)。正式部署前填上你自己的:
+ADMIN_EMAILS = ""
+
+# 機密(不要寫在這裡,用 wrangler secret put 設定):
+#   SESSION_SECRET  GOOGLE_CLIENT_ID  GOOGLE_CLIENT_SECRET
+#   STRIPE_SECRET_KEY  STRIPE_WEBHOOK_SECRET  STRIPE_PRICE_ID
+# 本機開發請複製 .dev.vars.example 成 .dev.vars 再填。

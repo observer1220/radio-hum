@@ -1,0 +1,79 @@
+{
+  "categories": [
+    {
+      "id": "work",
+      "name": "讀書・工作"
+    },
+    {
+      "id": "drive",
+      "name": "開車・移動"
+    },
+    {
+      "id": "relax",
+      "name": "放鬆・用餐"
+    },
+    {
+      "id": "night",
+      "name": "夜晚・酒吧"
+    }
+  ],
+  "channels": [
+    {
+      "id": "focus",
+      "name": "專注",
+      "category": "work",
+      "description": "爵士與 bossa nova,適合讀書、工作、咖啡廳",
+      "en": "Deep Focus",
+      "freq": "88.5",
+      "tagline": "把世界調小聲,把專注調大聲"
+    },
+    {
+      "id": "drive",
+      "name": "兜風",
+      "category": "drive",
+      "description": "City Pop 風格器樂,適合開車與逛街",
+      "en": "Open Road",
+      "freq": "94.7",
+      "tagline": "下一個路口,剛好是你喜歡的歌"
+    },
+    {
+      "id": "chill",
+      "name": "放鬆",
+      "category": "relax",
+      "description": "Lo-fi 與氛圍音樂,適合餐廳與民宿",
+      "en": "Slow Down",
+      "freq": "101.3",
+      "tagline": "慢一點,沒關係"
+    },
+    {
+      "id": "night",
+      "name": "深夜",
+      "category": "night",
+      "description": "Smooth Jazz,適合酒吧與深夜工作",
+      "en": "After Hours",
+      "freq": "107.9",
+      "tagline": "整座城市睡了,我們還醒著"
+    },
+    {
+      "id": "demo",
+      "name": "測試頻道",
+      "category": "work",
+      "description": "開發測試用的三首歌",
+      "en": "Test Signal",
+      "freq": "99.9",
+      "tagline": "開發測試用的三首歌"
+    }
+  ],
+  "genres": {
+    "bossa-nova": "Bossa Nova",
+    "jazz": "Jazz",
+    "smooth-jazz": "Smooth Jazz",
+    "city-pop": "City Pop",
+    "funk": "Funk",
+    "lofi": "Lo-fi",
+    "ambient": "Ambient",
+    "acoustic": "原聲吉他",
+    "piano": "鋼琴",
+    "classical": "輕古典"
+  }
+}

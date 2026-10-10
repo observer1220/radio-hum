@@ -1,0 +1,100 @@
+[
+    {
+        "id": "chill-0001",
+        "channel": "chill",
+        "picks": {
+            "速度": "88 bpm",
+            "風格偏向": "lo-fi hip hop",
+            "場景": "rainy window",
+            "點綴音": "distant birdsong",
+            "結構": "slow evolving texture"
+        },
+        "status": "pending",
+        "note": "",
+        "createdAt": "2026-10-10T09:46:36.966Z"
+    },
+    {
+        "id": "chill-0002",
+        "channel": "chill",
+        "picks": {
+            "速度": "72 bpm",
+            "風格偏向": "acoustic guitar folk",
+            "場景": "sunday morning",
+            "點綴音": "soft wind chimes",
+            "結構": "simple repeating motif"
+        },
+        "status": "pending",
+        "note": "",
+        "createdAt": "2026-10-10T09:46:36.966Z"
+    },
+    {
+        "id": "chill-0003",
+        "channel": "chill",
+        "picks": {
+            "速度": "80 bpm",
+            "風格偏向": "ambient pads",
+            "場景": "spa room",
+            "點綴音": "light rain",
+            "結構": "gentle intro, long calm middle"
+        },
+        "status": "pending",
+        "note": "",
+        "createdAt": "2026-10-10T09:46:36.966Z"
+    },
+    {
+        "id": "chill-0004",
+        "channel": "chill",
+        "picks": {
+            "速度": "65 bpm",
+            "風格偏向": "soft piano with strings",
+            "場景": "quiet garden",
+            "點綴音": "vinyl crackle",
+            "結構": "slow evolving texture"
+        },
+        "status": "pending",
+        "note": "",
+        "createdAt": "2026-10-10T09:46:36.966Z"
+    },
+    {
+        "id": "chill-0005",
+        "channel": "chill",
+        "picks": {
+            "速度": "65 bpm",
+            "風格偏向": "warm kitchen jazz",
+            "場景": "warm sunset",
+            "點綴音": "no extra sounds",
+            "結構": "simple repeating motif"
+        },
+        "status": "pending",
+        "note": "",
+        "createdAt": "2026-10-10T09:46:36.966Z"
+    },
+    {
+        "id": "chill-0006",
+        "channel": "chill",
+        "picks": {
+            "速度": "72 bpm",
+            "風格偏向": "acoustic guitar folk",
+            "場景": "rainy window",
+            "點綴音": "light rain",
+            "結構": "simple repeating motif"
+        },
+        "status": "kept",
+        "note": "補登",
+        "createdAt": "2026-10-10T09:48:46.013Z"
+    },
+    {
+        "id": "chill-0007",
+        "channel": "chill",
+        "picks": {
+            "速度": "65 bpm",
+            "風格偏向": "lo-fi hip hop",
+            "場景": "sunday morning",
+            "點綴音": "vinyl crackle",
+            "結構": "slow evolving texture"
+        },
+        "status": "kept",
+        "note": "補登",
+        "createdAt": "2026-10-10T09:49:19.812Z"
+    }
+]

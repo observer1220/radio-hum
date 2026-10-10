@@ -1,0 +1,17 @@
+# 依賴與本機狀態
+node_modules/
+.wrangler/
+
+# 機密(絕對不能進 git;正式環境用 wrangler secret put 或 Cloudflare Dashboard 設定)
+.dev.vars
+.env
+.env.*
+
+# 太大、也不需要進 git 的內容:
+#   hls-output/ 是轉檔結果,已經上傳到 R2,不是程式的一部分
+#   library/ 是你的原始音檔(很大),請另外備份(雲端硬碟 / 外接硬碟)
+hls-output/
+library/
+
+*.log
+.DS_Store

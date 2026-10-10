@@ -1,0 +1,10 @@
+{
+  "_說明": "每天重複的節目表。start 是當地時間(utcOffsetMinutes: 台灣 = 480)。type=music 播音樂庫(每天不同的洗牌順序);type=show 在該時間點播 tracks 裡列的節目,播完後用音樂補到下一個時段。",
+  "utcOffsetMinutes": 480,
+  "slots": [
+    {
+      "start": "00:00",
+      "type": "music"
+    }
+  ]
+}

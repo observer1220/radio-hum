@@ -1,0 +1,162 @@
+{
+  "exclude": "vocals, singing, humming, lyrics, choir, spoken word, rap",
+  "channels": {
+    "focus": {
+      "name": "專注",
+      "target": 20,
+      "base": "instrumental bossa nova jazz, nylon guitar, brushed drums, upright bass, warm electric piano, relaxed steady groove, gentle melody, background music for studying, clean warm mix",
+      "axes": {
+        "速度": [
+          "70 bpm",
+          "80 bpm",
+          "90 bpm",
+          "100 bpm"
+        ],
+        "主奏": [
+          "nylon guitar lead",
+          "felt piano lead",
+          "vibraphone lead",
+          "soft flute lead",
+          "muted trumpet lead",
+          "warm Rhodes lead"
+        ],
+        "場景": [
+          "quiet library",
+          "rainy afternoon",
+          "sunny cafe morning",
+          "bookstore corner",
+          "study desk lamp"
+        ],
+        "調性氣質": [
+          "major key, bright and light",
+          "minor key, calm and thoughtful",
+          "mellow and nostalgic"
+        ],
+        "結構": [
+          "soft intro and gentle fade out",
+          "loop-friendly steady middle, no big changes",
+          "sparse arrangement, lots of space"
+        ]
+      }
+    },
+    "drive": {
+      "name": "兜風",
+      "target": 20,
+      "base": "instrumental city pop inspired, funky bass, bright electric piano, clean chorus guitar, tight drums, glossy 80s synth pads, smooth upbeat groove, feel-good driving music",
+      "axes": {
+        "速度": [
+          "100 bpm",
+          "108 bpm",
+          "115 bpm",
+          "122 bpm"
+        ],
+        "主奏": [
+          "saxophone melody",
+          "synth lead melody",
+          "slap bass groove",
+          "jazz guitar melody",
+          "electric piano melody",
+          "marimba accents"
+        ],
+        "場景": [
+          "coastal highway at sunset",
+          "city lights at night",
+          "morning commute",
+          "weekend road trip",
+          "tunnel and neon"
+        ],
+        "質感": [
+          "warm analog tape",
+          "crisp and glossy",
+          "slightly dreamy reverb",
+          "punchy and dry"
+        ],
+        "結構": [
+          "steady groove, no big drops",
+          "gentle build in the middle, stays smooth",
+          "short intro, loop-friendly"
+        ]
+      }
+    },
+    "chill": {
+      "name": "放鬆",
+      "target": 20,
+      "base": "instrumental lo-fi chill, mellow electric piano, soft dusty drums, warm round bass, gentle ambient texture, calm and cozy, relaxing background music, loop-friendly",
+      "axes": {
+        "速度": [
+          "65 bpm",
+          "72 bpm",
+          "80 bpm",
+          "88 bpm"
+        ],
+        "風格偏向": [
+          "lo-fi hip hop",
+          "acoustic guitar folk",
+          "ambient pads",
+          "soft piano with strings",
+          "kalimba and harp",
+          "warm kitchen jazz"
+        ],
+        "場景": [
+          "sunday morning",
+          "rainy window",
+          "warm sunset",
+          "quiet garden",
+          "hotel lobby",
+          "spa room"
+        ],
+        "點綴音": [
+          "vinyl crackle",
+          "light rain",
+          "distant birdsong",
+          "soft wind chimes",
+          "no extra sounds"
+        ],
+        "結構": [
+          "slow evolving texture",
+          "simple repeating motif",
+          "gentle intro, long calm middle"
+        ]
+      }
+    },
+    "night": {
+      "name": "深夜",
+      "target": 20,
+      "base": "instrumental smooth jazz, late night lounge, warm Rhodes piano, slow brushed drums, deep upright bass, soft saxophone, dim intimate mood, relaxed, no vocals",
+      "axes": {
+        "速度": [
+          "55 bpm",
+          "62 bpm",
+          "70 bpm",
+          "76 bpm"
+        ],
+        "主奏": [
+          "muted trumpet lead",
+          "tenor saxophone lead",
+          "jazz guitar lead",
+          "vibraphone lead",
+          "piano trio, no horns",
+          "baritone sax lead"
+        ],
+        "場景": [
+          "empty bar after midnight",
+          "neon city in the rain",
+          "hotel lounge",
+          "quiet street at 2am",
+          "rooftop at night"
+        ],
+        "情緒": [
+          "warm and romantic",
+          "lonely but comforting",
+          "mysterious and cool",
+          "soft and sleepy"
+        ],
+        "結構": [
+          "slow build, never loud",
+          "sparse piano and bass, lots of space",
+          "loop-friendly steady groove"
+        ]
+      }
+    }
+  }
+}

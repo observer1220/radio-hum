@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Suno 提示詞管理器</title>
+<style>
+  :root { --bg:#fff; --text:#111; --muted:#6b6b6b; --line:#e3e3e3; --surface:#f6f6f6; --accent:#111; --ok:#1e8e4e; --warn:#c77d00; --no:#9a9a9a; --danger:#c0392b; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.6 system-ui,-apple-system,"Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif; color:var(--text); background:var(--bg); }
+  header { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:12px 20px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); z-index:5; }
+  header h1 { font-size:1.05rem; margin:0 8px 0 0; }
+  .spacer { flex:1; }
+  main { max-width:980px; margin:0 auto; padding:20px; }
+  button, select, input, textarea { font:inherit; color:inherit; }
+  .btn { border:1px solid var(--line); background:#fff; border-radius:8px; padding:6px 12px; cursor:pointer; }
+  .btn:hover { border-color:var(--text); }
+  .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .btn.small { padding:2px 9px; font-size:.82rem; }
+  .btn.danger { color:var(--danger); }
+  .tabs { display:flex; gap:6px; flex-wrap:wrap; }
+  .tab { border:1px solid var(--line); background:#fff; border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .muted { color:var(--muted); font-size:.85rem; }
+  .bar { height:8px; background:var(--surface); border-radius:99px; overflow:hidden; min-width:120px; }
+  .bar i { display:block; height:100%; background:var(--ok); }
+  .card { border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin:10px 0; }
+  .card .top { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .id { font:600 .85rem ui-monospace,Menlo,Consolas,monospace; }
+  .prompt { background:var(--surface); border-radius:8px; padding:8px 10px; margin:8px 0; font:.88rem/1.5 ui-monospace,Menlo,Consolas,monospace; word-break:break-word; }
+  .picks { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0; }
+  .pick { background:#fff; border:1px solid var(--line); border-radius:999px; padding:1px 10px; font-size:.82rem; }
+  .status { display:inline-flex; gap:4px; }
+  .st { border:1px solid var(--line); background:#fff; border-radius:999px; padding:2px 11px; cursor:pointer; font-size:.85rem; }
+  .st.on-kept { background:var(--ok); color:#fff; border-color:var(--ok); }
+  .st.on-pending { background:var(--warn); color:#fff; border-color:var(--warn); }
+  .st.on-rejected { background:var(--no); color:#fff; border-color:var(--no); }
+  input[type=text], input[type=number], textarea, select { border:1px solid var(--line); border-radius:8px; padding:6px 9px; background:#fff; }
+  input[type=text], textarea { width:100%; }
+  table { width:100%; border-collapse:collapse; font-size:.88rem; }
+  th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:500; white-space:nowrap; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
+  .axis h4 { margin:0 0 6px; font-size:.9rem; }
+  .opt { display:grid; grid-template-columns:1fr 34px; gap:8px; align-items:center; margin:3px 0; font-size:.85rem; }
+  .opt .t { overflow-wrap:anywhere; }
+  .opt.zero .t { color:var(--danger); }
+  .opt .bar { min-width:0; margin-top:3px; }
+  .help { background:var(--surface); border-radius:10px; padding:10px 14px; font-size:.88rem; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:8px 0; }
+  svg text { font:12px system-ui,"PingFang TC","Microsoft JhengHei",sans-serif; }
+  .hidden { display:none !important; }
+  @media (max-width:600px){ main{padding:12px} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Suno 提示詞管理器</h1>
+  <div id="channelTabs" class="tabs"></div>
+  <span class="spacer"></span>
+  <span id="saved" class="muted"></span>
+  <button class="btn small" id="btnCsv" title="用 Excel 開啟">匯出 Excel(CSV)</button>
+  <button class="btn small" id="btnJson">備份(JSON)</button>
+  <label class="btn small">還原 / 匯入<input id="fileImport" type="file" accept=".json,application/json" hidden></label>
+</header>
+
+<main>
+  <div class="row">
+    <div class="tabs" id="viewTabs"></div>
+    <span class="spacer"></span>
+    <span id="progressText" class="muted"></span>
+    <div class="bar" style="width:140px"><i id="progressBar" style="width:0"></i></div>
+  </div>
+  <div id="view"></div>
+  <p class="muted" style="margin-top:32px">資料自動存在這個瀏覽器裡。換電腦、清除瀏覽器資料前,請先按右上角「備份(JSON)」。</p>
+</main>
+
+<script>
+/* ===================== 資料 ===================== */
+const DEFAULT_CFG = {
+ "exclude": "vocals, singing, humming, lyrics, choir, spoken word, rap",
+ "channels": {
+  "focus": {
+   "name": "專注",
+   "target": 20,
+   "base": "instrumental bossa nova jazz, nylon guitar, brushed drums, upright bass, warm electric piano, relaxed steady groove, gentle melody, background music for studying, clean warm mix",
+   "axes": {
+    "速度": [
+     "70 bpm",
+     "80 bpm",
+     "90 bpm",
+     "100 bpm"
+    ],
+    "主奏": [
+     "nylon guitar lead",
+     "felt piano lead",
+     "vibraphone lead",
+     "soft flute lead",
+     "muted trumpet lead",
+     "warm Rhodes lead"
+    ],
+    "場景": [
+     "quiet library",
+     "rainy afternoon",
+     "sunny cafe morning",
+     "bookstore corner",
+     "study desk lamp"
+    ],
+    "調性氣質": [
+     "major key, bright and light",
+     "minor key, calm and thoughtful",
+     "mellow and nostalgic"
+    ],
+    "結構": [
+     "soft intro and gentle fade out",
+     "loop-friendly steady middle, no big changes",
+     "sparse arrangement, lots of space"
+    ]
+   }
+  },
+  "drive": {
+   "name": "兜風",
+   "target": 20,
+   "base": "instrumental city pop inspired, funky bass, bright electric piano, clean chorus guitar, tight drums, glossy 80s synth pads, smooth upbeat groove, feel-good driving music",
+   "axes": {
+    "速度": [
+     "100 bpm",
+     "108 bpm",
+     "115 bpm",
+     "122 bpm"
+    ],
+    "主奏": [
+     "saxophone melody",
+     "synth lead melody",
+     "slap bass groove",
+     "jazz guitar melody",
+     "electric piano melody",
+     "marimba accents"
+    ],
+    "場景": [
+     "coastal highway at sunset",
+     "city lights at night",
+     "morning commute",
+     "weekend road trip",
+     "tunnel and neon"
+    ],
+    "質感": [
+     "warm analog tape",
+     "crisp and glossy",
+     "slightly dreamy reverb",
+     "punchy and dry"
+    ],
+    "結構": [
+     "steady groove, no big drops",
+     "gentle build in the middle, stays smooth",
+     "short intro, loop-friendly"
+    ]
+   }
+  },
+  "chill": {
+   "name": "放鬆",
+   "target": 20,
+   "base": "instrumental lo-fi chill, mellow electric piano, soft dusty drums, warm round bass, gentle ambient texture, calm and cozy, relaxing background music, loop-friendly",
+   "axes": {
+    "速度": [
+     "65 bpm",
+     "72 bpm",
+     "80 bpm",
+     "88 bpm"
+    ],
+    "風格偏向": [
+     "lo-fi hip hop",
+     "acoustic guitar folk",
+     "ambient pads",
+     "soft piano with strings",
+     "kalimba and harp",
+     "warm kitchen jazz"
+    ],
+    "場景": [
+     "sunday morning",
+     "rainy window",
+     "warm sunset",
+     "quiet garden",
+     "hotel lobby",
+     "spa room"
+    ],
+    "點綴音": [
+     "vinyl crackle",
+     "light rain",
+     "distant birdsong",
+     "soft wind chimes",
+     "no extra sounds"
+    ],
+    "結構": [
+     "slow evolving texture",
+     "simple repeating motif",
+     "gentle intro, long calm middle"
+    ]
+   }
+  },
+  "night": {
+   "name": "深夜",
+   "target": 20,
+   "base": "instrumental smooth jazz, late night lounge, warm Rhodes piano, slow brushed drums, deep upright bass, soft saxophone, dim intimate mood, relaxed, no vocals",
+   "axes": {
+    "速度": [
+     "55 bpm",
+     "62 bpm",
+     "70 bpm",
+     "76 bpm"
+    ],
+    "主奏": [
+     "muted trumpet lead",
+     "tenor saxophone lead",
+     "jazz guitar lead",
+     "vibraphone lead",
+     "piano trio, no horns",
+     "baritone sax lead"
+    ],
+    "場景": [
+     "empty bar after midnight",
+     "neon city in the rain",
+     "hotel lounge",
+     "quiet street at 2am",
+     "rooftop at night"
+    ],
+    "情緒": [
+     "warm and romantic",
+     "lonely but comforting",
+     "mysterious and cool",
+     "soft and sleepy"
+    ],
+    "結構": [
+     "slow build, never loud",
+     "sparse piano and bass, lots of space",
+     "loop-friendly steady groove"
+    ]
+   }
+  }
+ }
+};
+const KEY = 'promptTracker.v1';
+let db;
+try { db = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { db = null; }
+if (!db || !db.cfg) db = { cfg: DEFAULT_CFG, log: [] };
+let channel = Object.keys(db.cfg.channels)[0];
+let view = 'gen';
+let filter = 'all';
+
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(db)); $('saved').textContent = '已自動儲存 ' + new Date().toLocaleTimeString(); }
+  catch (e) { $('saved').textContent = '⚠ 無法儲存(瀏覽器禁止)。請用「備份」下載'; }
+}
+const $ = (id) => document.getElementById(id);
+const cfgOf = (c) => db.cfg.channels[c || channel];
+const logOf = (c) => db.log.filter((r) => r.channel === (c || channel));
+
+/* ===================== 小工具 ===================== */
+function h(tag, props, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (k === 'class') n.className = v;
+    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+    else if (k === 'value') n.value = v;
+    else n.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) if (kid != null) n.append(kid);
+  return n;
+}
+async function copy(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) { const t = h('textarea', { style: 'position:fixed;opacity:0' }); t.value = text; document.body.append(t); t.select(); document.execCommand('copy'); t.remove(); }
+  if (btn) { const old = btn.textContent; btn.textContent = '已複製 ✓'; setTimeout(() => (btn.textContent = old), 1200); }
+}
+const buildPrompt = (ch, picks) => [ch.base, ...Object.keys(ch.axes).map((a) => picks[a]).filter(Boolean)].join(', ');
+const combos = (axes) => Object.entries(axes).reduce((acc, [axis, opts]) => acc.flatMap((c) => opts.map((o) => ({ ...c, [axis]: o }))), [{}]);
+const distance = (axes, a, b) => Object.keys(axes).filter((k) => a[k] !== b[k]).length;
+const nextId = (c) => c + '-' + String(Math.max(0, ...logOf(c).map((r) => Number(r.id.split('-')[1]))) + 1).padStart(4, '0');
+const STATUS = { pending: '待聽', kept: '留下', rejected: '淘汰' };
+
+/* ===================== 產生下一批(盡量和用過的不同) ===================== */
+function generate(n) {
+  const ch = cfgOf();
+  const used = logOf();
+  const usedKeys = new Set(used.map((r) => JSON.stringify(r.picks)));
+  const pool = combos(ch.axes).filter((c) => !usedKeys.has(JSON.stringify(c)));
+  if (!pool.length) return alert('這個頻道所有組合都用過了,請到「設定」增加選項');
+  const counts = {};
+  for (const r of used.filter((r) => r.status !== 'rejected')) for (const [a, o] of Object.entries(r.picks)) counts[a + '|' + o] = (counts[a + '|' + o] || 0) + 1;
+  const chosen = [];
+  for (let i = 0; i < Math.min(n, pool.length); i++) {
+    const ref = [...used.map((r) => r.picks), ...chosen.map((c) => c.c)];
+    let best = null;
+    for (const c of pool) {
+      if (chosen.some((x) => x.c === c)) continue;
+      const minDist = ref.length ? Math.min(...ref.map((p) => distance(ch.axes, c, p))) : Object.keys(ch.axes).length;
+      const rarity = Object.entries(c).reduce((s, [a, o]) => s + 1 / (1 + (counts[a + '|' + o] || 0)), 0);
+      const score = minDist * 100 + rarity * 10 + Math.random();
+      if (!best || score > best.score) best = { c, score, minDist };
+    }
+    chosen.push(best);
+    for (const [a, o] of Object.entries(best.c)) counts[a + '|' + o] = (counts[a + '|' + o] || 0) + 1;
+  }
+  const now = new Date().toISOString();
+  const made = chosen.map((x) => { const r = { id: nextId(channel), channel, picks: x.c, status: 'pending', note: '', createdAt: now }; db.log.push(r); return r; });
+  save();
+  return made;
+}
+
+/* ===================== 補登舊提示詞(自動比對各軸選項) ===================== */
+function backfill(text, status) {
+  const ch = cfgOf(); const t = text.toLowerCase(); const picks = {}; const missing = [];
+  for (const [axis, opts] of Object.entries(ch.axes)) {
+    const hit = opts.filter((o) => t.includes(o.toLowerCase())).sort((a, b) => b.length - a.length)[0];
+    if (hit) picks[axis] = hit; else missing.push(axis);
+  }
+  if (!Object.keys(picks).length) return { error: '在這段文字裡找不到任何選項,請確認頻道是否選對' };
+  if (logOf().some((r) => JSON.stringify(r.picks) === JSON.stringify(picks))) return { error: '這個組合已經在紀錄裡了' };
+  const rec = { id: nextId(channel), channel, picks, status, note: '補登', createdAt: new Date().toISOString() };
+  db.log.push(rec); save();
+  return { rec, missing };
+}
+
+/* ===================== 畫面 ===================== */
+let lastBatch = []; // 這次剛產生的
+function statusButtons(r, rerender) {
+  return h('span', { class: 'status' }, Object.entries(STATUS).map(([k, label]) =>
+    h('button', { class: 'st' + (r.status === k ? ' on-' + k : ''), onclick: () => { r.status = k; save(); rerender(); } }, label)));
+}
+function cardFor(r, rerender) {
+  const ch = cfgOf(r.channel);
+  const prompt = buildPrompt(ch, r.picks);
+  return h('div', { class: 'card' },
+    h('div', { class: 'top' },
+      h('span', { class: 'id' }, r.id),
+      statusButtons(r, rerender),
+      h('span', { class: 'spacer' }),
+      h('button', { class: 'btn small', onclick: (e) => copy(prompt, e.target) }, '複製提示詞')),
+    h('div', { class: 'prompt' }, prompt),
+    h('div', { class: 'picks' }, Object.entries(r.picks).map(([a, o]) => h('span', { class: 'pick', title: a }, o))),
+    h('input', { type: 'text', placeholder: '備註(例如:歌名、為什麼淘汰)', value: r.note || '', onchange: (e) => { r.note = e.target.value; save(); } }));
+}
+
+function viewGen() {
+  const ch = cfgOf();
+  const box = h('div');
+  const n = h('input', { type: 'number', min: 1, max: 20, value: 5, style: 'width:70px' });
+  const list = h('div');
+  const draw = () => { list.replaceChildren(...lastBatch.filter((r) => db.log.includes(r)).map((r) => cardFor(r, () => { draw(); renderHeader(); }))); };
+  box.append(
+    h('div', { class: 'help' }, '按「產生」會挑出和你之前用過的組合差最多的提示詞。複製到 Suno 之後,聽完在卡片上按「留下」或「淘汰」就記錄好了,不用打任何指令。'),
+    h('div', { class: 'row' },
+      h('button', { class: 'btn primary', onclick: () => { const made = generate(Math.max(1, Number(n.value) || 5)); if (made) { lastBatch = made; draw(); renderHeader(); } } }, '產生'),
+      n, h('span', null, '組提示詞'),
+      h('span', { class: 'spacer' }),
+      h('span', { class: 'muted' }, 'Exclude 欄:'),
+      h('button', { class: 'btn small', onclick: (e) => copy(db.cfg.exclude, e.target) }, '複製排除詞')),
+    list);
+  draw();
+  const pend = logOf().filter((r) => r.status === 'pending' && !lastBatch.includes(r));
+  if (pend.length) box.append(h('p', { class: 'muted' }, '還沒聽完的(' + pend.length + ' 組)請到「紀錄」分頁處理。'));
+  return box;
+}
+
+function viewLog() {
+  const box = h('div');
+  const rows = h('tbody');
+  const tools = h('div', { class: 'row' },
+    h('span', { class: 'muted' }, '篩選:'),
+    ...['all', 'pending', 'kept', 'rejected'].map((k) => h('button', { class: 'tab' + (filter === k ? ' active' : ''), onclick: () => { filter = k; render(); } }, k === 'all' ? '全部' : STATUS[k])));
+  const draw = () => {
+    const list = logOf().filter((r) => filter === 'all' || r.status === filter).slice().reverse();
+    rows.replaceChildren(...list.map((r) => h('tr', null,
+      h('td', { class: 'id' }, r.id),
+      h('td', null, statusButtons(r, () => { draw(); renderHeader(); })),
+      h('td', null, Object.values(r.picks).join(' / ')),
+      h('td', null, h('input', { type: 'text', value: r.note || '', onchange: (e) => { r.note = e.target.value; save(); } })),
+      h('td', null,
+        h('button', { class: 'btn small', onclick: (e) => copy(buildPrompt(cfgOf(r.channel), r.picks), e.target) }, '複製'), ' ',
+        h('button', { class: 'btn small danger', onclick: () => { if (confirm('刪除 ' + r.id + '?')) { db.log.splice(db.log.indexOf(r), 1); save(); draw(); renderHeader(); } } }, '刪除')))));
+    if (!list.length) rows.append(h('tr', null, h('td', { colspan: 5, class: 'muted' }, '沒有紀錄')));
+  };
+  // 補登
+  const ta = h('textarea', { rows: 3, placeholder: '貼上你以前用過的完整提示詞,按「補登」,會自動比對出每個軸用了哪個選項' });
+  const st = h('select', null, h('option', { value: 'kept' }, '留下'), h('option', { value: 'rejected' }, '淘汰'), h('option', { value: 'pending' }, '待聽'));
+  const msg = h('span', { class: 'muted' });
+  const add = h('div', { class: 'help' },
+    h('strong', null, '補登舊紀錄'),
+    ta,
+    h('div', { class: 'row' },
+      h('button', { class: 'btn primary', onclick: () => {
+        const res = backfill(ta.value, st.value);
+        if (res.error) { msg.textContent = res.error; return; }
+        msg.textContent = '已補登 ' + res.rec.id + (res.missing.length ? '(找不到對應選項而略過:' + res.missing.join('、') + ')' : '');
+        ta.value = ''; draw(); renderHeader();
+      } }, '補登'), '狀態:', st, msg));
+  box.append(tools, h('table', null, h('thead', null, h('tr', null, ['編號', '狀態', '組合', '備註', ''].map((t) => h('th', null, t)))), rows), h('div', { style: 'height:16px' }), add);
+  draw();
+  return box;
+}
+
+function viewCoverage() {
+  const ch = cfgOf();
+  const recs = logOf().filter((r) => r.status !== 'rejected');
+  const count = (axis, o) => recs.filter((r) => r.picks[axis] === o).length;
+  const max = Math.max(1, ...Object.entries(ch.axes).flatMap(([a, opts]) => opts.map((o) => count(a, o))));
+  const total = combos(ch.axes).length;
+  const box = h('div');
+  box.append(h('p', { class: 'muted' }, '已用 ' + logOf().length + ' / ' + total + ' 種組合。紅字 = 這個選項還沒用過。'));
+  box.append(h('div', { class: 'grid' }, Object.entries(ch.axes).map(([axis, opts]) =>
+    h('div', { class: 'axis card' }, h('h4', null, axis), opts.map((o) => {
+      const c = count(axis, o);
+      return h('div', { class: 'opt' + (c ? '' : ' zero') },
+        h('div', null, h('div', { class: 't' }, o), h('div', { class: 'bar' }, h('i', { style: 'width:' + (c / max) * 100 + '%' }))),
+        h('div', { class: 'muted', style: 'text-align:right' }, String(c)));
+    })))));
+  box.append(h('h3', { style: 'margin-top:28px' }, '心智圖'), mindmap(ch, count));
+  return box;
+}
+
+function mindmap(ch, count) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const axes = Object.entries(ch.axes);
+  const ROW = 26, X0 = 14, X1 = 190, X2 = 400, W = 760;
+  const leaves = axes.reduce((s, [, o]) => s + o.length, 0);
+  const H = leaves * ROW + 30;
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('width', '100%'); svg.style.maxWidth = W + 'px';
+  const el = (t, a, txt) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (txt != null) e.textContent = txt; svg.append(e); return e; };
+  const curve = (x1, y1, x2, y2, color) => el('path', { d: 'M' + x1 + ' ' + y1 + ' C' + (x1 + 60) + ' ' + y1 + ' ' + (x2 - 60) + ' ' + y2 + ' ' + x2 + ' ' + y2, fill: 'none', stroke: color, 'stroke-width': 1.5 });
+  let leaf = 0; const axisY = [];
+  const leafData = [];
+  axes.forEach(([axis, opts]) => {
+    const ys = opts.map(() => 20 + leaf++ * ROW);
+    axisY.push(ys.reduce((a, b) => a + b, 0) / ys.length);
+    leafData.push(ys);
+  });
+  const rootY = axisY.reduce((a, b) => a + b, 0) / axisY.length;
+  const max = Math.max(1, ...axes.flatMap(([a, o]) => o.map((x) => count(a, x))));
+  axes.forEach(([axis, opts], i) => {
+    curve(X0 + 90, rootY, X1, axisY[i], '#bbb');
+    opts.forEach((o, j) => {
+      const c = count(axis, o), y = leafData[i][j];
+      curve(X1 + 70, axisY[i], X2, y, c ? '#1e8e4e' : '#ddd');
+      el('circle', { cx: X2, cy: y, r: 4 + (c / max) * 5, fill: c ? '#1e8e4e' : '#fff', stroke: c ? '#1e8e4e' : '#bbb' });
+      el('text', { x: X2 + 16, y: y + 4, fill: c ? '#111' : '#c0392b' }, o + (c ? '  ×' + c : ''));
+    });
+    el('rect', { x: X1, y: axisY[i] - 12, width: 70, height: 24, rx: 12, fill: '#111' });
+    el('text', { x: X1 + 35, y: axisY[i] + 4, fill: '#fff', 'text-anchor': 'middle' }, axis);
+  });
+  el('rect', { x: X0, y: rootY - 14, width: 90, height: 28, rx: 14, fill: '#111' });
+  el('text', { x: X0 + 45, y: rootY + 5, fill: '#fff', 'text-anchor': 'middle', 'font-weight': 700 }, ch.name || channel);
+  const wrap = h('div', { style: 'overflow-x:auto' }); wrap.append(svg); return wrap;
+}
+
+function viewSettings() {
+  const ch = cfgOf();
+  const base = h('textarea', { rows: 3 }); base.value = ch.base;
+  const axes = h('textarea', { rows: 14, style: 'font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85rem' });
+  axes.value = JSON.stringify(ch.axes, null, 2);
+  const target = h('input', { type: 'number', value: ch.target, style: 'width:80px' });
+  const excl = h('input', { type: 'text', value: db.cfg.exclude });
+  const msg = h('span', { class: 'muted' });
+  return h('div', null,
+    h('div', { class: 'help' }, '這裡改的是「' + ch.name + '」頻道的基底提示詞與各軸選項。新增或刪除選項後,舊紀錄不會被改動。'),
+    h('p', null, h('strong', null, '基底提示詞')), base,
+    h('p', null, h('strong', null, '變化軸(JSON:{"軸名":["選項1","選項2"]})')), axes,
+    h('div', { class: 'row' }, '目標首數:', target),
+    h('p', null, h('strong', null, 'Exclude 排除詞(全部頻道共用)')), excl,
+    h('div', { class: 'row' },
+      h('button', { class: 'btn primary', onclick: () => {
+        try {
+          const parsed = JSON.parse(axes.value);
+          if (!parsed || typeof parsed !== 'object' || Object.values(parsed).some((v) => !Array.isArray(v) || !v.length)) throw new Error('每個軸都要是「非空的選項陣列」');
+          ch.base = base.value.trim(); ch.axes = parsed; ch.target = Number(target.value) || ch.target; db.cfg.exclude = excl.value.trim();
+          save(); msg.textContent = '已儲存'; renderHeader();
+        } catch (e) { msg.textContent = '格式錯誤:' + e.message; }
+      } }, '儲存設定'),
+      h('button', { class: 'btn', onclick: () => { if (confirm('把「' + ch.name + '」恢復成預設設定?(紀錄不受影響)')) { db.cfg.channels[channel] = JSON.parse(JSON.stringify(DEFAULT_CFG.channels[channel] || ch)); save(); render(); } } }, '恢復預設'),
+      msg));
+}
+
+/* ===================== 匯出入 ===================== */
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type })), download: name });
+  document.body.append(a); a.click(); a.remove();
+}
+$('btnCsv').onclick = () => {
+  const names = [...new Set(Object.values(db.cfg.channels).flatMap((c) => Object.keys(c.axes)))];
+  const esc = (s) => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
+  const rows = [['編號', '頻道', '狀態', '備註', ...names, '完整提示詞', '建立時間']];
+  for (const r of db.log) rows.push([r.id, r.channel, STATUS[r.status] || r.status, r.note, ...names.map((a) => r.picks[a] || ''), cfgOf(r.channel) ? buildPrompt(cfgOf(r.channel), r.picks) : '', r.createdAt]);
+  download('suno-prompts-' + new Date().toISOString().slice(0, 10) + '.csv', '﻿' + rows.map((r) => r.map(esc).join(',')).join('\n'), 'text/csv');
+};
+$('btnJson').onclick = () => download('suno-tracker-backup-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(db, null, 1), 'application/json');
+$('fileImport').onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    // 相容兩種格式:這個網頁的備份({cfg,log}),或指令版的 prompts/log.json(純陣列)
+    const incoming = Array.isArray(data) ? { cfg: db.cfg, log: data } : data;
+    if (!incoming.log || !incoming.cfg) throw new Error('不是有效的備份檔');
+    if (!confirm('匯入會「取代」目前的所有紀錄(' + db.log.length + ' 筆 → ' + incoming.log.length + ' 筆)。確定嗎?')) return;
+    db = incoming; channel = Object.keys(db.cfg.channels)[0]; save(); render();
+  } catch (err) { alert('匯入失敗:' + err.message); }
+  e.target.value = '';
+};
+
+/* ===================== 外框 ===================== */
+function renderHeader() {
+  $('channelTabs').replaceChildren(...Object.entries(db.cfg.channels).map(([id, c]) =>
+    h('button', { class: 'tab' + (id === channel ? ' active' : ''), onclick: () => { channel = id; lastBatch = []; render(); } }, c.name || id)));
+  const kept = logOf().filter((r) => r.status === 'kept').length, t = cfgOf().target || 20;
+  $('progressText').textContent = '留下 ' + kept + ' / 目標 ' + t + '(待聽 ' + logOf().filter((r) => r.status === 'pending').length + ')';
+  $('progressBar').style.width = Math.min(100, (kept / t) * 100) + '%';
+  $('viewTabs').replaceChildren(...[['gen', '產生'], ['log', '紀錄'], ['cov', '覆蓋率 & 心智圖'], ['set', '設定']].map(([k, label]) =>
+    h('button', { class: 'tab' + (view === k ? ' active' : ''), onclick: () => { view = k; render(); } }, label)));
+}
+function render() {
+  renderHeader();
+  $('view').replaceChildren({ gen: viewGen, log: viewLog, cov: viewCoverage, set: viewSettings }[view]());
+}
+render();
+</script>
+</body>
+</html>

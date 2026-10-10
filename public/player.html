@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>測試電台</title>
+<link rel="stylesheet" href="/theme.css" />
+<link rel="stylesheet" href="/player.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.17/hls.min.js"></script>
+</head>
+<body>
+<header class="top">
+  <span class="brand">測試電台</span>
+  <span class="spacer"></span>
+  <span id="who" class="who"></span>
+  <label class="muted">動畫 <select id="vis-style" aria-label="動畫樣式"></select></label>
+  <button id="btn-embed" class="btn small hidden">嵌入 / 串流</button>
+  <button id="btn-billing" class="btn small hidden">訂閱管理</button>
+  <a id="btn-admin" class="btn small hidden" href="/admin">後台</a>
+  <button id="btn-logout" class="btn small hidden">登出</button>
+  <a id="btn-login" class="btn primary small hidden" href="/auth/google">用 Google 登入</a>
+</header>
+
+<main class="app">
+  <section>
+    <h2 class="label">頻道</h2>
+    <div id="channels" class="channels"></div>
+    <div id="genres" class="genres" aria-label="曲風"></div>
+  </section>
+
+  <section class="player">
+    <span id="live" class="live">直播</span>
+    <canvas id="vis" aria-hidden="true"></canvas>
+    <div>
+      <div id="title" class="title">選一個頻道開始</div>
+      <div id="artist" class="sub"></div>
+      <div id="where" class="sub"></div>
+    </div>
+    <div class="controls">
+      <button id="play" aria-label="播放">
+        <svg class="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z"/></svg>
+        <svg class="i-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4.5" height="14" rx="1.2"/><rect x="13.5" y="5" width="4.5" height="14" rx="1.2"/></svg>
+      </button>
+      <label class="volume">音量 <input id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="音量" /></label>
+    </div>
+    <div id="status" class="status" role="status"></div>
+
+    <div id="gate" class="gate hidden">
+      <div class="card-box">
+        <h2 id="gate-title"></h2>
+        <p id="gate-text"></p>
+        <a id="gate-login" class="btn primary hidden" href="/auth/google">用 Google 登入</a>
+        <button id="gate-subscribe" class="btn primary hidden">訂閱開通</button>
+        <form id="dev-form" class="row hidden"><input id="dev-email" type="email" placeholder="開發測試:輸入 email" /><button class="btn small">登入</button></form>
+      </div>
+    </div>
+  </section>
+</main>
+
+<dialog id="embed-dialog">
+  <h3>嵌入與串流</h3>
+  <p class="muted">每把金鑰可以限制只能在你登記的網站使用。金鑰等同你的付費授權,請勿公開貼在不受控的地方。嵌入網址可加參數:<code>vis=bars|ring|wave|orbs|off</code>、<code>theme=dark</code>。</p>
+  <div id="key-list"></div>
+  <h4>新增金鑰</h4>
+  <div class="row"><input id="key-label" type="text" placeholder="名稱(例如:官網首頁、A 分店)" /></div>
+  <div class="row"><textarea id="key-origins" rows="3" placeholder="允許嵌入的網站(一行一個,例如 https://shop.example.com)。留空 = 不限制網站"></textarea></div>
+  <div class="row"><button id="key-create" class="btn primary">建立金鑰</button><span id="key-msg" class="muted"></span></div>
+  <div class="row"><button id="embed-close" class="btn">關閉</button></div>
+</dialog>
+
+<script src="/core.js"></script>
+<script src="/vis.js"></script>
+<script src="/player.js"></script>
+</body>
+</html>
