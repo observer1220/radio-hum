@@ -52,6 +52,19 @@
       iframeLabel: 'iframe embed code for the selected channel:',
       streamLabel: 'Stream URL (for custom players and apps, HLS):',
       noKeys: 'No keys yet.',
+      // 均衡器、定時、鬧鐘
+      eqTitle: 'Equalizer',
+      eq_flat: 'Flat', eq_night: 'Night', eq_clarity: 'Clarity', eq_car: 'Car',
+      eqBass: 'BASS', eqMid: 'MID', eqTreble: 'TREBLE',
+      noise: 'Tuning noise', on: 'On', off: 'Off',
+      timerTitle: 'Sleep timer and alarm',
+      sleep: 'SLEEP', alarm: 'ALARM', min: 'min', set: 'Set', clear: 'Clear',
+      sleepShort: 'SLEEP', alarmShort: 'ALARM',
+      alarmChannel: 'Alarm channel',
+      alarmSet: 'Alarm set for {time}. Keep this tab open.',
+      alarmFired: 'Good morning. Fading in…',
+      sleepEnded: 'Sleep timer ended.',
+      keepOpen: 'The alarm only rings while this tab stays open.',
     },
   };
   const q = new URLSearchParams(location.search).get('lang');

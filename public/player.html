@@ -34,7 +34,7 @@
 
 <main>
   <article class="card paused" id="card">
-    <div class="ctop"><span>LIVE RADIO</span><span id="live" class="live">LIVE</span></div>
+    <div class="ctop"><span>LIVE RADIO</span><span id="badge" class="badge" aria-live="off"></span><span id="live" class="live">LIVE</span></div>
     <div id="channels" class="pills" role="group" aria-label="Channels"></div>
 
     <div class="viz">
@@ -45,12 +45,21 @@
     <div class="info">
       <div class="meta">
         <h2 id="title" class="title">Pick a channel</h2>
-        <p id="sub" class="sub" aria-live="polite"></p>
+        <p id="sub" class="sr" aria-live="polite"></p>
       </div>
-      <button id="btn-recipe" class="icon hidden" type="button" aria-label="Recipe" title="Recipe">
-        <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1.1 15h-2.2v-6h2.2v6zm0-8.1h-2.2V6.8h2.2v2.1z"/></svg>
-      </button>
+      <div class="tools">
+        <button id="btn-eq" class="icon" type="button" aria-label="Equalizer" title="Equalizer">
+          <svg viewBox="0 0 24 24"><path d="M5 3h2v6H5zM5 13h2v8H5zM3 9h6v4H3zM11 3h2v10h-2zM11 17h2v4h-2zM9 13h6v4H9zM17 3h2v3h-2zM17 10h2v11h-2zM15 6h6v4h-6z"/></svg>
+        </button>
+        <button id="btn-timer" class="icon" type="button" aria-label="Sleep timer and alarm" title="Sleep timer and alarm">
+          <svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12zm-1 2v4.4l3 1.8.9-1.5-2.4-1.4V8zM3.3 6.6 6.6 3.3 5.2 1.9 1.9 5.2zM20.7 6.6l-3.3-3.3 1.4-1.4 3.3 3.3z"/></svg>
+        </button>
+        <button id="btn-recipe" class="icon hidden" type="button" aria-label="Recipe" title="Recipe">
+          <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1.1 15h-2.2v-6h2.2v6zm0-8.1h-2.2V6.8h2.2v2.1z"/></svg>
+        </button>
+      </div>
     </div>
+    <canvas id="lcd" class="lcd" aria-hidden="true"></canvas>
 
     <div class="prog" aria-hidden="true"><i id="prog"></i></div>
     <div class="times" aria-hidden="true"><span id="t-el"></span><span id="t-rem"></span></div>
@@ -98,7 +107,10 @@
 
 <script src="/i18n.js"></script>
 <script src="/core.js"></script>
+<script src="/fx.js"></script>
 <script src="/vis.js"></script>
+<script src="/lcd.js"></script>
+<script src="/tools.js"></script>
 <script src="/player.js"></script>
 </body>
 </html>

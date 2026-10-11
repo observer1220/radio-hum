@@ -48,6 +48,9 @@
   td.col-title, td.col-note { min-width:240px; }
   td textarea { width:100%; min-width:220px; resize:vertical; line-height:1.4; }
   td.col-actions { white-space:nowrap; }
+  td.col-dl { min-width:150px; white-space:nowrap; }
+  td.col-dl input, td.col-dl select { margin-bottom:4px; }
+  .dl-warn { color:#c0392b; font-size:12px; white-space:normal; }
   .table-wrap { overflow-x:auto; }
   th { color:var(--muted); font-weight:500; white-space:nowrap; }
   .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
@@ -154,6 +157,17 @@ const STATUS = { pending: '待聽', kept: '留下', rejected: '淘汰' };
 // Suno 一次生成兩首。「歌名」欄可以填多個,用逗號隔開(半形 , 全形 , 頓號 、 都可以)
 const splitNames = (str) => String(str || '').split(/[,\uFF0C\u3001;\uFF1B\n]+/).map((x) => x.trim()).filter(Boolean);
 // 這組提示詞「留下了幾首歌」:不是留下就是 0;填了幾個歌名就至少算幾首;沒填就看下拉(預設 1 首)
+// 商用權留證:Suno 的商用權看「付費期間下載」。留下的歌要記下下載日期和當時的方案(免費方案下載的沒有商用權)
+const PLANS = { pro: 'Pro', premier: 'Premier', free: '免費 / 試用' };
+function downloadControl(r, after) {
+  if (r.status !== 'kept') return null;
+  const date = h('input', { type: 'date', value: r.dlAt || '', title: '從 Suno 下載這首歌的日期', onchange: (e) => { r.dlAt = e.target.value; save(); after(); } });
+  const plan = h('select', { title: '下載當時的 Suno 方案', onchange: (e) => { r.plan = e.target.value; save(); after(); } },
+    h('option', { value: '' }, '方案?'), ...Object.entries(PLANS).map(([k, v]) => h('option', { value: k }, v)));
+  plan.value = r.plan || '';
+  return h('span', null, date, h('br'), plan,
+    r.plan === 'free' ? h('div', { class: 'dl-warn' }, '免費方案下載的歌沒有商用權,不要放進付費電台') : null);
+}
 const songCount = (r) => (r.status === 'kept' ? Math.max(r.songs || 1, splitNames(r.title).length) : 0);
 // 留下時才出現的小下拉:這組提示詞兩首都留,選「留 2 首」;或直接在歌名欄用逗號填兩個名字
 function songsControl(r, after) {
@@ -302,10 +316,11 @@ function viewLog() {
       h('td', { class: 'col-title' }, h('textarea', { rows: 2, value: r.title || '', placeholder: '歌名(兩首都留就用逗號隔開)', onchange: (e) => { r.title = e.target.value; save(); draw(); renderHeader(); } })),
       h('td', { class: 'col-picks' }, Object.values(r.picks).join(' / ')),
       h('td', { class: 'col-note' }, h('textarea', { rows: 2, value: r.note || '', placeholder: '備註', onchange: (e) => { r.note = e.target.value; save(); } })),
+      h('td', { class: 'col-dl' }, downloadControl(r, draw)),
       h('td', { class: 'col-actions' },
         h('button', { class: 'btn small', onclick: (e) => copy(buildPrompt(cfgOf(r.channel), r.picks), e.target) }, '複製'), ' ',
         h('button', { class: 'btn small danger', onclick: () => { if (confirm('刪除 ' + r.id + '?')) { db.log.splice(db.log.indexOf(r), 1); save(); draw(); renderHeader(); } } }, '刪除')))));
-    if (!list.length) rows.append(h('tr', null, h('td', { colspan: 6, class: 'muted' }, '沒有紀錄')));
+    if (!list.length) rows.append(h('tr', null, h('td', { colspan: 7, class: 'muted' }, '沒有紀錄')));
   };
   // 補登
   const ta = h('textarea', { rows: 3, placeholder: '貼上你以前用過的完整提示詞,按「補登」。會自動判斷是哪個頻道、並比對出每個軸用了哪個選項' });
@@ -329,7 +344,7 @@ function viewLog() {
         msg.textContent = text;
         ta.value = ''; titleIn.value = ''; draw(); renderHeader();
       } }, '補登'), '狀態:', st, msg));
-  box.append(tools, h('div', { class: 'table-wrap' }, h('table', null, h('thead', null, h('tr', null, ['編號', '狀態', '歌名', '組合', '備註', ''].map((t) => h('th', null, t)))), rows)), h('div', { style: 'height:16px' }), add);
+  box.append(tools, h('div', { class: 'table-wrap' }, h('table', null, h('thead', null, h('tr', null, ['編號', '狀態', '歌名', '組合', '備註', '下載(留證)', ''].map((t) => h('th', null, t)))), rows)), h('div', { style: 'height:16px' }), add);
   draw();
   return box;
 }
@@ -458,8 +473,8 @@ function download(name, text, type) {
 $('btnCsv').onclick = () => {
   const names = [...new Set(Object.values(db.cfg.channels).flatMap((c) => Object.keys(c.axes)))];
   const esc = (s) => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
-  const rows = [['編號', '頻道', '狀態', '留下首數', '歌名', '備註', ...names, '完整提示詞', '建立時間']];
-  for (const r of db.log) rows.push([r.id, r.channel, STATUS[r.status] || r.status, songCount(r), r.title, r.note, ...names.map((a) => r.picks[a] || ''), cfgOf(r.channel) ? buildPrompt(cfgOf(r.channel), r.picks) : '', r.createdAt]);
+  const rows = [['編號', '頻道', '狀態', '留下首數', '歌名', '備註', ...names, '完整提示詞', '建立時間', 'Suno 下載日期', '下載時方案']];
+  for (const r of db.log) rows.push([r.id, r.channel, STATUS[r.status] || r.status, songCount(r), r.title, r.note, ...names.map((a) => r.picks[a] || ''), cfgOf(r.channel) ? buildPrompt(cfgOf(r.channel), r.picks) : '', r.createdAt, r.dlAt || '', PLANS[r.plan] || '']);
   download('suno-prompts-' + new Date().toISOString().slice(0, 10) + '.csv', '﻿' + rows.map((r) => r.map(esc).join(',')).join('\n'), 'text/csv');
 };
 $('btnJson').onclick = () => download('suno-tracker-backup-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(db, null, 1), 'application/json');

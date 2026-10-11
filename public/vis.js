@@ -22,13 +22,20 @@
     function ensureAudio() {
       if (actx || style === 'off') return;
       try {
-        actx = new (window.AudioContext || window.webkitAudioContext)();
-        const src = actx.createMediaElementSource(audio);
-        analyser = actx.createAnalyser();
-        analyser.fftSize = 512;
-        analyser.smoothingTimeConstant = 0.82;
-        src.connect(analyser);
-        analyser.connect(actx.destination);
+        if (window.RadioAudio) {
+          // 播放器頁:音訊鏈由 fx.js 統一建立(含均衡器),這裡只拿分析器來畫動畫
+          const a = window.RadioAudio.ensure(audio);
+          if (!a) return;
+          actx = a.ctx; analyser = a.analyser;
+        } else {
+          actx = new (window.AudioContext || window.webkitAudioContext)();
+          const src = actx.createMediaElementSource(audio);
+          analyser = actx.createAnalyser();
+          analyser.fftSize = 512;
+          analyser.smoothingTimeConstant = 0.82;
+          src.connect(analyser);
+          analyser.connect(actx.destination);
+        }
         freq = new Uint8Array(analyser.frequencyBinCount);
         wave = new Uint8Array(analyser.fftSize);
       } catch (e) { actx = null; analyser = null; }

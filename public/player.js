@@ -36,6 +36,7 @@
     root.className = next;
     try { localStorage.setItem('theme', next); } catch (e) { /* 無痕模式 */ }
     vis.setColor(barColor());
+    lcd.redraw();
   });
 
   // ---------- 播放 ----------
@@ -79,6 +80,10 @@
   vis.setStyle(reduceMotion ? 'off' : 'center');
   vis.start();
 
+  // ---------- LCD 點陣跑馬燈:#sub 的文字(特色標籤)一變,就同步顯示在點陣條上 ----------
+  const lcd = Lcd($('lcd'), { scroll: !reduceMotion });
+  new MutationObserver(() => lcd.set($('sub').textContent)).observe($('sub'), { childList: true, characterData: true, subtree: true });
+
   // ---------- 這首歌的「特色」 ----------
   // tags 是生成這首歌時的提示詞各軸選項(例如 速度:72 bpm、場景:rainy window)。沒有的話就顯示曲名。
   const AXIS = { '速度': 'Tempo', '主奏': 'Lead', '風格偏向': 'Style', '場景': 'Scene', '點綴音': 'Texture', '質感': 'Texture', '結構': 'Structure', '調性氣質': 'Mood', '情緒': 'Mood' };
@@ -112,10 +117,6 @@
       renderInfo(info);
     } catch (e) { /* 抓不到就先空著,播放後會顯示 */ }
   }
-  $('btn-recipe').addEventListener('click', () => {
-    const on = $('recipe').classList.toggle('on');
-    $('btn-recipe').classList.toggle('on', on);
-  });
 
   // ---------- 頻道與曲風 ----------
   const genreName = (ch, gid) => { const g = gid && ch.genres.find((x) => x.id === gid); return g ? g.name : ''; };
@@ -151,6 +152,7 @@
     $('btn-recipe').classList.add('hidden'); $('recipe').classList.remove('on');
     $('prog').style.width = '0'; $('t-el').textContent = ''; $('t-rem').textContent = '';
     showNow();
+    tools.onSwitch(); // 轉旋鈕的 0.3 秒雜訊
     tune();
     player.play();
   }
@@ -266,10 +268,14 @@
     } catch (e) { $('key-msg').textContent = e.message; }
   });
 
+  // ---------- 小工具:均衡器、睡眠定時、鬧鐘(見 tools.js) ----------
+  const tools = PlayerTools({ audio, $, el, t, state, selectChannel, setStatus, pause: () => player.pause() });
+
   // ---------- 啟動 ----------
   async function init() {
     const [dir] = await Promise.all([api('/api/channels'), refreshMe().catch(() => null)]);
     state.channels = dir.channels;
+    tools.channelsReady();
     if (state.me) renderHeader();
     if (!state.channels.length) { $('title').textContent = t('noChannels'); return; }
 
