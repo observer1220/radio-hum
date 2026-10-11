@@ -216,5 +216,15 @@ export function createScheduler(tracks: Track[], schedule: Schedule) {
     };
   }
 
-  return { windowAt, timeline };
+  /** 這個時間點正在播的是哪一首的哪一段、這一段已經播了幾秒。不用有人在聽,伺服器就算得出來。 */
+  function current(nowUnix: number): { trackId: string; file: string; offsetInSeg: number } | null {
+    const local = nowUnix + schedule.utcOffsetMinutes * 60;
+    const pos = locate(local);
+    if (!pos) return null;
+    const e = timeline(pos.day).entries[pos.idx];
+    const offset = pos.day === Math.floor(local / SECONDS_PER_DAY) ? local - pos.day * SECONDS_PER_DAY : 0;
+    return { trackId: e.trackId, file: e.file, offsetInSeg: Math.max(0, Math.min(offset - e.start, e.duration)) };
+  }
+
+  return { windowAt, current, timeline };
 }

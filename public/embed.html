@@ -76,7 +76,13 @@
   // 頻道名稱(公開資料,不需要金鑰)
   fetch('/api/channels').then((r) => r.json()).then((d) => {
     const c = d.channels.find((x) => x.id === channel);
-    if (c) { $('title').textContent = c.name; $('sub').textContent = c.description || ''; }
+    if (c) $('title').textContent = c.name;
+  }).catch(() => {});
+  // 還沒按播放時,顯示這個頻道現在正在播那首的選項軸
+  fetch('/api/now/' + encodeURIComponent(channel) + (genre ? '/' + encodeURIComponent(genre) : '')).then((r) => (r.ok ? r.json() : null)).then((info) => {
+    if (!info || tuned) return;
+    const tags = info.tags ? Object.values(info.tags).filter((v) => v && v !== '—').slice(0, 3).map((v) => String(v).replace(/\bbpm\b/i, 'BPM')).join(' · ') : '';
+    $('sub').textContent = tags || [info.title, info.artist].filter(Boolean).join(' · ');
   }).catch(() => {});
 
   const vis = new Visualizer($('vis'), audio);

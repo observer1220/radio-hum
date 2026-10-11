@@ -84,20 +84,33 @@
   const AXIS = { '速度': 'Tempo', '主奏': 'Lead', '風格偏向': 'Style', '場景': 'Scene', '點綴音': 'Texture', '質感': 'Texture', '結構': 'Structure', '調性氣質': 'Mood', '情緒': 'Mood' };
   const pretty = (v) => String(v).replace(/\bbpm\b/i, 'BPM');
   const tagLine = (info) => (info && info.tags ? Object.values(info.tags).filter((v) => v && v !== '—').slice(0, 3).map(pretty).join(' · ') : '');
-  function renderTrack() {
-    const tr = state.track;
-    if (!tr) return;
-    const line = tagLine(tr.info);
-    $('sub').textContent = line || [tr.info.title, tr.info.artist].filter(Boolean).join(' · '); // 有特色標籤就只顯示標籤,不顯示歌名
-    const hasRecipe = !!tr.info.tags;
+  function renderInfo(info) {
+    const line = tagLine(info);
+    $('sub').textContent = line || [info.title, info.artist].filter(Boolean).join(' · '); // 有特色標籤就只顯示標籤,不顯示歌名
+    const hasRecipe = !!info.tags;
     $('btn-recipe').classList.toggle('hidden', !hasRecipe);
     if (hasRecipe) {
       $('recipe').replaceChildren(
-        ...Object.entries(tr.info.tags).map(([k, v]) => el('div', {}, el('span', {}, AXIS[k] || k), el('span', {}, pretty(v)))),
+        ...Object.entries(info.tags).map(([k, v]) => el('div', {}, el('span', {}, AXIS[k] || k), el('span', {}, pretty(v)))),
         el('small', {}, t('recipeNote')));
     } else {
       $('recipe').classList.remove('on'); $('btn-recipe').classList.remove('on');
     }
+  }
+  function renderTrack() { if (state.track) renderInfo(state.track.info); }
+
+  // 還沒按播放時,先問伺服器「這個頻道現在正在播哪一首」,顯示它的選項軸(速度、主奏、場景…)。
+  // 一旦真的開始播放,就以實際播放的那一首為準。
+  let nowSeq = 0;
+  async function showNow() {
+    const ch = state.channel;
+    if (!ch) return;
+    const seq = ++nowSeq;
+    try {
+      const info = await api('/api/now/' + ch.id + (state.genre ? '/' + state.genre : ''));
+      if (seq !== nowSeq || state.track) return; // 已經有正在播放的資料,就不要蓋掉
+      renderInfo(info);
+    } catch (e) { /* 抓不到就先空著,播放後會顯示 */ }
   }
   $('btn-recipe').addEventListener('click', () => {
     const on = $('recipe').classList.toggle('on');
@@ -134,9 +147,10 @@
     history.replaceState(null, '', '#' + ch.id + (state.genre ? '/' + state.genre : ''));
     renderStage();
     renderPills();
-    $('sub').textContent = t('tuning');
+    $('sub').textContent = '';
     $('btn-recipe').classList.add('hidden'); $('recipe').classList.remove('on');
     $('prog').style.width = '0'; $('t-el').textContent = ''; $('t-rem').textContent = '';
+    showNow();
     tune();
     player.play();
   }
@@ -267,7 +281,7 @@
     state.genre = found.genres.some((g) => g.id === gid) ? gid : '';
     renderStage();
     renderPills();
-    $('sub').textContent = found.description || '';
+    showNow(); // 不顯示頻道簡介:一載入就顯示現在正在播那首的選項軸
   }
   init().catch((e) => setStatus(t('loadFailed', { msg: e.message }), true));
 })();

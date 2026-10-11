@@ -257,6 +257,20 @@ async function libraryApi(request: Request, env: Env): Promise<Response> {
   });
 }
 
+/** 播放器要的曲目資料:曲名、長度、各段長度(算進度用)、特色標籤。 */
+async function trackPayload(env: Env, t: CatalogTrack) {
+  return {
+    id: t.id,
+    title: t.title ?? t.id,
+    artist: t.artist ?? "",
+    genre: t.genre ?? "",
+    channel: t.channel ?? "",
+    seconds: Math.round(t.totalDuration),
+    segments: t.segments.map((x) => [x.file, x.duration]),
+    tags: await tagsFor(env, t),
+  };
+}
+
 // ---------- 路由 ----------
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -276,19 +290,22 @@ export default {
       if (trackMatch) {
         const t = TRACK_BY_ID.get(trackMatch[1]);
         if (!t) return json({ error: "not found" }, 404);
-        return json(
-          {
-            title: t.title ?? t.id,
-            artist: t.artist ?? "",
-            genre: t.genre ?? "",
-            channel: t.channel ?? "",
-            seconds: Math.round(t.totalDuration),
-            segments: t.segments.map((x) => [x.file, x.duration]), // 播放器用來算「這首歌播到哪」
-            tags: await tagsFor(env, t),
-          },
-          200,
-          { "cache-control": "public, max-age=300" },
-        );
+        return json(await trackPayload(env, t), 200, { "cache-control": "public, max-age=300" });
+      }
+
+      // 「這個頻道現在正在播什麼」:播放器一載入(還沒按播放)就能顯示這首歌的特色標籤。
+      // 直播的進度是由時間算出來的,不需要有人在聽。
+      const nowMatch = path.match(/^\/api\/now\/([a-z0-9_-]+)(?:\/([a-z0-9_-]+))?$/);
+      if (nowMatch) {
+        const cur = schedulerFor(TRACKS, nowMatch[1], nowMatch[2])?.current(Math.floor(Date.now() / 1000));
+        const t = cur && TRACK_BY_ID.get(cur.trackId);
+        if (!cur || !t) return json({ error: "not found" }, 404);
+        let before = 0;
+        for (const [file, dur] of t.segments.map((x) => [x.file, x.duration] as const)) {
+          if (file === cur.file) break;
+          before += dur;
+        }
+        return json({ ...(await trackPayload(env, t)), elapsed: before + cur.offsetInSeg }, 200, { "cache-control": "public, max-age=5" });
       }
 
       // 帳號(登入交給 auth-hub)
