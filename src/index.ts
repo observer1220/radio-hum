@@ -320,6 +320,7 @@ export default {
 
       // 頁面
       if (path === "/" || path === "/player") return await page(env, request, "/player.html", { "Content-Security-Policy": "frame-ancestors 'self'" });
+      if (path === "/game") return await page(env, request, "/game.html", { "Content-Security-Policy": "frame-ancestors 'self'" });
       if (path === "/tracker") return await page(env, request, "/tracker.html", { "Cache-Control": "no-store", "Content-Security-Policy": "frame-ancestors 'self'" });
       const embedMatch = path.match(/^\/embed\/([a-z0-9_-]+)(?:\/([a-z0-9_-]+))?$/);
       if (embedMatch) return await page(env, request, "/embed.html", await embedHeaders(env, url.searchParams.get("key")));

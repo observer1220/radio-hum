@@ -56,7 +56,7 @@
       eqTitle: 'Equalizer',
       eq_flat: 'Flat', eq_night: 'Night', eq_clarity: 'Clarity', eq_car: 'Car',
       eqBass: 'BASS', eqMid: 'MID', eqTreble: 'TREBLE',
-      noise: 'Tuning noise', on: 'On', off: 'Off',
+      off: 'Off',
       timerTitle: 'Sleep timer and alarm',
       sleep: 'SLEEP', alarm: 'ALARM', min: 'min', set: 'Set', clear: 'Clear',
       sleepShort: 'SLEEP', alarmShort: 'ALARM',

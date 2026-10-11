@@ -56,7 +56,7 @@
           const parts = m ? m.split('?')[0].split('/') : [];
           const info = parts[0] && (await trackInfo(parts[0]));
           // 第二個參數:正在播的是這首歌的哪一段、這一段在播放時間軸上的起點(用來算「這首歌播到哪」)
-          if (info && seq === tuneSeq && opts.onTrack) opts.onTrack(info, { file: parts[1], start: data.frag.start });
+          if (info && seq === tuneSeq && opts.onTrack) opts.onTrack({ ...info, id: info.id || parts[0] }, { file: parts[1], start: data.frag.start }); // id:舊的快取回應沒有 id,用網址補上
         });
         hls.on(Hls.Events.ERROR, (_e, data) => {
           const code = data.response && data.response.code;

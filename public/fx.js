@@ -1,6 +1,5 @@
-// 共用的音訊鏈:一個 AudioContext,讓「均衡器」、「調頻雜訊」和「動畫用的分析器」用同一條線路。
+// 共用的音訊鏈:一個 AudioContext,讓「均衡器」和「動畫用的分析器」用同一條線路。
 //   audio → 低音 → 中音 → 高音 → 低通(夜間用)→ 壓縮器(夜間用)→ 補償音量 → 分析器 → 喇叭
-//   雜訊 → 帶通濾波 → 音量包絡 ────────────────────────────────────────────────→ 喇叭
 // createMediaElementSource 一個 <audio> 只能建一次,所以統一由這裡建,vis.js 向這裡要分析器。
 (function () {
   // 情境預設。bass / mid / treble 單位是 dB;night 另外加上低通與壓縮(讓大小聲差距變小,睡前不被突然的聲音吵到)
@@ -13,7 +12,6 @@
 
   let audio = null, ctx = null, g = null;
   let cur = { preset: 'flat', ...PRESETS.flat };
-  let noiseBuf = null;
 
   function build(el) {
     audio = el;
@@ -68,28 +66,6 @@
         : { preset: 'custom', night: false, bass: next.bass, mid: next.mid, treble: next.treble };
       apply();
       return { ...cur };
-    },
-    /** 轉旋鈕時的 0.3 秒電台雜訊:白噪音過帶通濾波,中心頻率從低掃到高,音量快起快收。 */
-    tuningNoise(volume) {
-      if (!g || !ctx || volume <= 0) return;
-      if (!noiseBuf) {
-        noiseBuf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 0.5), ctx.sampleRate);
-        const d = noiseBuf.getChannelData(0);
-        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-      }
-      const t = ctx.currentTime;
-      const src = ctx.createBufferSource(); src.buffer = noiseBuf;
-      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4;
-      bp.frequency.setValueAtTime(700, t);
-      bp.frequency.exponentialRampToValueAtTime(3200, t + 0.3);
-      const env = ctx.createGain();
-      const peak = 0.22 * Math.min(1, volume);
-      env.gain.setValueAtTime(0.0001, t);
-      env.gain.exponentialRampToValueAtTime(peak, t + 0.04);
-      env.gain.setValueAtTime(peak, t + 0.2);
-      env.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
-      src.connect(bp); bp.connect(env); env.connect(ctx.destination);
-      src.start(t); src.stop(t + 0.32);
     },
   };
 

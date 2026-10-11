@@ -21,6 +21,7 @@
 <header class="top">
   <span class="brand">RADIO HUM</span>
   <span class="sp"></span>
+  <a class="link" href="/game" title="Experimental rhythm game">Game <sup>beta</sup></a>
   <a id="btn-tracker" class="link hidden" href="/tracker">Tracker</a>
   <a id="btn-admin" class="link hidden" href="#" target="_blank" rel="noopener">Users</a>
   <button id="btn-embed" class="link" type="button">Embed</button>
@@ -45,7 +46,7 @@
     <div class="info">
       <div class="meta">
         <h2 id="title" class="title">Pick a channel</h2>
-        <p id="sub" class="sr" aria-live="polite"></p>
+        <p id="sub" class="sub" aria-live="polite"></p>
       </div>
       <div class="tools">
         <button id="btn-eq" class="icon" type="button" aria-label="Equalizer" title="Equalizer">
@@ -59,7 +60,6 @@
         </button>
       </div>
     </div>
-    <canvas id="lcd" class="lcd" aria-hidden="true"></canvas>
 
     <div class="prog" aria-hidden="true"><i id="prog"></i></div>
     <div class="times" aria-hidden="true"><span id="t-el"></span><span id="t-rem"></span></div>
@@ -109,7 +109,6 @@
 <script src="/core.js"></script>
 <script src="/fx.js"></script>
 <script src="/vis.js"></script>
-<script src="/lcd.js"></script>
 <script src="/tools.js"></script>
 <script src="/player.js"></script>
 </body>

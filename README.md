@@ -91,6 +91,15 @@
 預設的基底與選項來自 `prompts/axes.json`(部署時打包);在 `/tracker` 的「設定」改過的內容以雲端為準。
 舊的 `npm run prompt -- ...` 指令版仍可用,但它的紀錄(`prompts/log.json`)在本機,和網站上的雲端資料是分開的;兩邊可用「備份(JSON)/ 還原 / 匯入」互相搬。
 
+## 節奏遊戲(實驗性,`/game`)
+
+跟著直播電台正在播的歌,在拍點上點擊,依準確度顯示 Perfect / Excellent / Good / Miss。手機支援點擊與震動(Android;iPhone 的 Safari 不支援網頁震動)。
+
+- **拍點是事先算好的**:`npm run beats`(= `python scripts/beats.py`)分析 `hls-output/` 裡轉檔後的音訊,產生 `public/beats/<曲目id>.json`,跟網站一起部署。新歌轉檔後要再跑一次(只會處理還沒有的),沒有拍點檔的歌,遊戲頁會顯示「No beat map for this song yet」,照常聽歌。需要 Python、librosa 和 ffmpeg。
+- **判定範圍**:±45 毫秒 Perfect、±90 毫秒 Excellent、±140 毫秒 Good,超過算 Miss。規則在 `public/rhythm.js`,測試在 `test/rhythm.test.ts`。
+- **延遲補償**:瀏覽器回報的喇叭延遲會自動扣掉;藍牙耳機通常還要再往後調,頁面上有「Audio delay」滑桿。
+- 已驗證:用分析器抓真實鼓點,對照節拍圖的拍點,偏差中位數約 -8 毫秒(整條時間軸是對齊的)。但每首歌的「節拍抓得準不準」取決於分析結果,腳本會印出 BPM 與可靠度,節奏很不明顯的歌可能不好玩。
+
 ## 部署(deploy.sh)
 
 流程參考 UnderCurrent / VEIL。`./deploy.sh`(Windows 請在 Git Bash 執行):轉檔 → 上傳新歌到 R2 → (改到程式才)型別檢查與測試 → commit(訊息自動帶時間戳記)→ 推到目前所在的分支,Cloudflare 自動部署。

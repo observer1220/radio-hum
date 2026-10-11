@@ -1,0 +1,21 @@
+/* 節奏遊戲頁(實驗性)。外觀沿用 player.css 的卡片、頁首、膠囊按鈕 */
+.hud { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; }
+.hud b { display: block; font: 700 22px var(--mono); letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.hud small { font: 600 9px var(--mono); letter-spacing: .18em; color: var(--muted); }
+
+.stage { position: relative; background: var(--panel); border-radius: 18px; height: 128px; overflow: hidden; touch-action: manipulation; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.overlay { position: absolute; inset: 0; background: var(--panel); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 0 18px; font-size: 12.5px; color: var(--muted); }
+.overlay.hidden { display: none; }
+.overlay p { margin: 0; line-height: 1.5; }
+
+/* 大一點的點擊區,手機用拇指好按。touch-action 避免雙擊放大;user-select 避免長按選字 */
+.pad { height: 76px; border: 0; border-radius: 18px; background: var(--btn); color: var(--btnfg); font: 700 15px var(--mono); letter-spacing: .3em; cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; transition: transform .06s; }
+.pad:active, .pad.down { transform: scale(.98); }
+.last { font: 10.5px/1.4 var(--mono); color: var(--muted); text-align: center; }
+.last:empty { display: none; }
+.opts { display: flex; flex-wrap: wrap; gap: 6px 16px; justify-content: space-between; align-items: center; font-size: 11.5px; color: var(--muted); }
+.opt { display: flex; align-items: center; gap: 8px; }
+.opt input[type=range] { width: 110px; accent-color: var(--fg); }
+.opt output { font: 11px var(--mono); min-width: 46px; }
+header.top .brand { text-decoration: none; color: inherit; }

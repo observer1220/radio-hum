@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Rhythm · Radio Hum</title>
+<script>
+  // 跟播放器一樣:先決定黑 / 白主題再畫畫面
+  (function () {
+    var t = null;
+    try { t = localStorage.getItem('theme'); } catch (e) { /* ignore */ }
+    if (t !== 'dark' && t !== 'light') t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.className = t;
+  })();
+</script>
+<link rel="stylesheet" href="/theme.css" />
+<link rel="stylesheet" href="/player.css" />
+<link rel="stylesheet" href="/game.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.17/hls.min.js"></script>
+</head>
+<body>
+<header class="top">
+  <span class="brand">RADIO HUM</span>
+  <span class="sp"></span>
+  <a class="link" href="/">← Radio</a>
+  <button id="btn-theme" class="tbtn" type="button" aria-label="Switch light / dark" title="Switch light / dark">
+    <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18V3z"/><path d="M12 3a9 9 0 0 1 0 18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+  </button>
+</header>
+
+<main>
+  <article class="card paused" id="card">
+    <div class="ctop"><span>RHYTHM · BETA</span><span id="live" class="live">LIVE</span></div>
+    <div id="channels" class="pills" role="group" aria-label="Channels"></div>
+
+    <div class="hud">
+      <div><b id="score">0</b><small>SCORE</small></div>
+      <div><b id="combo">0</b><small>COMBO</small></div>
+      <div><b id="acc">--</b><small>ACCURACY</small></div>
+    </div>
+
+    <div class="stage">
+      <canvas id="stage" aria-label="Rhythm lane"></canvas>
+      <div id="overlay" class="overlay">
+        <p>Tap in time with the beat.<br />The notes follow the live radio — everyone hears the same moment.</p>
+        <button id="start" class="btn primary" type="button">Start</button>
+      </div>
+    </div>
+
+    <div class="info">
+      <div class="meta">
+        <h2 id="title" class="title">Pick a channel</h2>
+        <p id="sub" class="sub"></p>
+      </div>
+    </div>
+
+    <button id="pad" class="pad" type="button" aria-label="Tap on the beat">TAP</button>
+    <div id="last" class="last"></div>
+
+    <div class="opts">
+      <label class="opt">Audio delay <input id="offset" type="range" min="-100" max="400" step="5" value="0" /> <output id="offv">0 ms</output></label>
+      <label id="vibrow" class="opt"><input id="vib" type="checkbox" checked /> Vibration</label>
+    </div>
+    <div id="status" class="status" role="status"></div>
+  </article>
+</main>
+
+<script src="/i18n.js"></script>
+<script src="/core.js"></script>
+<script src="/fx.js"></script>
+<script src="/rhythm.js"></script>
+<script src="/game.js"></script>
+</body>
+</html>

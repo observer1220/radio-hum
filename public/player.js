@@ -36,7 +36,6 @@
     root.className = next;
     try { localStorage.setItem('theme', next); } catch (e) { /* 無痕模式 */ }
     vis.setColor(barColor());
-    lcd.redraw();
   });
 
   // ---------- 播放 ----------
@@ -57,8 +56,15 @@
     onDenied: () => { setStatus(t('cannotConnect'), true); $('play').classList.remove('loading'); },
   });
   audio.addEventListener('playing', () => $('play').classList.remove('loading'));
-  audio.addEventListener('play', () => { $('play').classList.add('playing'); $('play').setAttribute('aria-label', t('pause')); $('card').classList.remove('paused'); });
-  audio.addEventListener('pause', () => { $('play').classList.remove('playing', 'loading'); $('play').setAttribute('aria-label', t('play')); $('card').classList.add('paused'); });
+  // 播放鍵、LIVE 點的外觀跟著「是否在播放」走
+  function showPlaying(on) {
+    $('play').classList.toggle('playing', on);
+    if (!on) $('play').classList.remove('loading');
+    $('play').setAttribute('aria-label', on ? t('pause') : t('play'));
+    $('card').classList.toggle('paused', !on);
+  }
+  audio.addEventListener('play', () => showPlaying(true));
+  audio.addEventListener('pause', () => showPlaying(false));
 
   // 這首歌播到哪:已播段落的總長 + 目前這一段播了多久
   setInterval(() => {
@@ -79,10 +85,6 @@
   vis.setColor(barColor());
   vis.setStyle(reduceMotion ? 'off' : 'center');
   vis.start();
-
-  // ---------- LCD 點陣跑馬燈:#sub 的文字(特色標籤)一變,就同步顯示在點陣條上 ----------
-  const lcd = Lcd($('lcd'), { scroll: !reduceMotion });
-  new MutationObserver(() => lcd.set($('sub').textContent)).observe($('sub'), { childList: true, characterData: true, subtree: true });
 
   // ---------- 這首歌的「特色」 ----------
   // tags 是生成這首歌時的提示詞各軸選項(例如 速度:72 bpm、場景:rainy window)。沒有的話就顯示曲名。
@@ -152,7 +154,6 @@
     $('btn-recipe').classList.add('hidden'); $('recipe').classList.remove('on');
     $('prog').style.width = '0'; $('t-el').textContent = ''; $('t-rem').textContent = '';
     showNow();
-    tools.onSwitch(); // 轉旋鈕的 0.3 秒雜訊
     tune();
     player.play();
   }
@@ -174,13 +175,20 @@
     if (!state.started) tune();
     player.play();
   }
+  // 睡眠定時用:完全停掉(暫停並中斷串流,不再下載),下次按播放會重新連上直播
+  function stop() {
+    player.pause();
+    player.teardown();
+    state.started = false;
+    showPlaying(false); // 中斷串流時瀏覽器不一定會送出 pause 事件,外觀要自己更新
+  }
   function tune() {
     state.started = true;
     player.tune(state.channel.id, state.genre);
   }
   const dlg = $('embed-dialog');
   document.addEventListener('keydown', (e) => {
-    if (dlg.open || /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+    if (document.querySelector('dialog[open]') || /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
     if (e.code === 'Space' && !/^(BUTTON|A)$/.test(document.activeElement.tagName)) { e.preventDefault(); togglePlay(); }
     else if (e.key === 'ArrowRight') stepChannel(1);
     else if (e.key === 'ArrowLeft') stepChannel(-1);
@@ -269,7 +277,7 @@
   });
 
   // ---------- 小工具:均衡器、睡眠定時、鬧鐘(見 tools.js) ----------
-  const tools = PlayerTools({ audio, $, el, t, state, selectChannel, setStatus, pause: () => player.pause() });
+  const tools = PlayerTools({ audio, $, el, t, state, selectChannel, setStatus, stop });
 
   // ---------- 啟動 ----------
   async function init() {
