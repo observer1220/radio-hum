@@ -12,6 +12,7 @@ export interface Track {
   artist?: string;
   url?: string; // 創作者 / 主持人頁面
   podcast?: { name?: string; feed?: string; url?: string };
+  tags?: Record<string, string>; // 這首歌的特色(速度、主奏、場景…),來自生成時的提示詞各軸選項;播放器顯示用
   segments: Segment[];
   totalDuration: number;
 }

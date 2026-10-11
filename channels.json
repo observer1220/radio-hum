@@ -2,66 +2,66 @@
   "categories": [
     {
       "id": "work",
-      "name": "讀書・工作"
+      "name": "Study & Work"
     },
     {
       "id": "drive",
-      "name": "開車・移動"
+      "name": "Drive"
     },
     {
       "id": "relax",
-      "name": "放鬆・用餐"
+      "name": "Relax & Dine"
     },
     {
       "id": "night",
-      "name": "夜晚・酒吧"
+      "name": "Night"
     }
   ],
   "channels": [
     {
       "id": "focus",
-      "name": "專注",
+      "name": "Focus",
       "category": "work",
-      "description": "爵士與 bossa nova,適合讀書、工作、咖啡廳",
+      "description": "Jazz and bossa nova for studying, working and cafés",
       "en": "Deep Focus",
       "freq": "88.5",
-      "tagline": "把世界調小聲,把專注調大聲"
+      "tagline": "Jazz and bossa nova for studying, working and cafés"
     },
     {
       "id": "drive",
-      "name": "兜風",
+      "name": "Drive",
       "category": "drive",
-      "description": "City Pop 風格器樂,適合開車與逛街",
+      "description": "City pop inspired instrumentals for the road and the shop floor",
       "en": "Open Road",
       "freq": "94.7",
-      "tagline": "下一個路口,剛好是你喜歡的歌"
+      "tagline": "City pop inspired instrumentals for the road and the shop floor"
     },
     {
       "id": "chill",
-      "name": "放鬆",
+      "name": "Unwind",
       "category": "relax",
-      "description": "Lo-fi 與氛圍音樂,適合餐廳與民宿",
+      "description": "Lo-fi and ambient for restaurants, guesthouses and slow afternoons",
       "en": "Slow Down",
       "freq": "101.3",
-      "tagline": "慢一點,沒關係"
+      "tagline": "Lo-fi and ambient for restaurants, guesthouses and slow afternoons"
     },
     {
       "id": "night",
-      "name": "深夜",
+      "name": "Late Night",
       "category": "night",
-      "description": "Smooth Jazz,適合酒吧與深夜工作",
+      "description": "Smooth jazz for bars and long nights",
       "en": "After Hours",
       "freq": "107.9",
-      "tagline": "整座城市睡了,我們還醒著"
+      "tagline": "Smooth jazz for bars and long nights"
     },
     {
       "id": "demo",
-      "name": "測試頻道",
+      "name": "Test",
       "category": "work",
-      "description": "開發測試用的三首歌",
+      "description": "Development test tracks",
       "en": "Test Signal",
       "freq": "99.9",
-      "tagline": "開發測試用的三首歌"
+      "tagline": "Development test tracks"
     }
   ],
   "genres": {
@@ -72,8 +72,8 @@
     "funk": "Funk",
     "lofi": "Lo-fi",
     "ambient": "Ambient",
-    "acoustic": "原聲吉他",
-    "piano": "鋼琴",
-    "classical": "輕古典"
+    "acoustic": "Acoustic Guitar",
+    "piano": "Piano",
+    "classical": "Light Classical"
   }
 }

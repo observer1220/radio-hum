@@ -3,14 +3,15 @@
 // 樣式:ring 圓環 / bars 柱狀 / wave 波形 / orbs 光球 / off 關閉(只剩背景光暈)
 // 色相由頻道主題決定(setHue),切換頻道時會平順過渡,不再自己亂轉色相。
 (function () {
-  const STYLES = { ring: '圓環', bars: '柱狀', wave: '波形', orbs: '光球', off: '關閉' };
+  const STYLES = { center: 'Pillars', ring: 'Ring', bars: 'Bars', wave: 'Wave', orbs: 'Orbs', off: 'Off' };
   // 30fps 就夠流暢,也比較省電
   const frameMs = () => 1000 / ({ '1': 15, '2': 8 }[document.documentElement.dataset.perf] || 30);
   const FX = (window.RadioFX = window.RadioFX || { bass: 0, rhythm: 1 });
 
   function Visualizer(canvas, audio) {
     const g = canvas.getContext('2d');
-    let style = 'ring';
+    let style = 'center';
+    let fixedColor = null; // 指定純色(黑白介面用);沒指定就用頻道色相
     let actx = null, analyser = null, freq = null, wave = null;
     let raf = 0, w = 0, h = 0, dpr = 1, bass = 0, lastFrame = 0, lastVar = 0, t0 = performance.now();
     let hue = 280, targetHue = 280;
@@ -71,6 +72,26 @@
     const col = (l, a, dh) => light
       ? 'hsla(0,0%,' + (14 + (l - 40) * 0.3).toFixed(0) + '%,' + (a == null ? 1 : a) + ')'
       : 'hsla(' + ((hue + (dh || 0) + 360) % 360).toFixed(1) + ',80%,' + l + '%,' + (a == null ? 1 : a) + ')';
+
+    // 置中直條:黑白介面的主視覺。條數依寬度決定(迷你版少一點),中間高、兩側低
+    function drawCenter() {
+      const n = Math.max(5, Math.min(34, Math.floor(w / 9)));
+      const pad = Math.min(18, w * 0.06);
+      const bw = Math.min(6, (w - pad * 2) / (n * 1.8));
+      const step = (w - pad * 2 - bw) / (n - 1);
+      g.fillStyle = fixedColor || (light ? '#111' : '#fff');
+      g.globalAlpha = 0.92;
+      for (let k = 0; k < n; k++) {
+        // 低頻放中間、高頻往兩側:左右對稱的鐘形,像聲音的波形(真實音樂的能量集中在低頻)
+        const d = Math.abs(k - (n - 1) / 2) / ((n - 1) / 2);
+        const v = freq[Math.floor(Math.pow(d, 1.4) * 150) + 2] / 255;
+        const bh = Math.max(bw, v * h * 0.95);
+        g.beginPath();
+        g.roundRect(pad + k * step, (h - bh) / 2, bw, bh, bw / 2);
+        g.fill();
+      }
+      g.globalAlpha = 1;
+    }
 
     function drawBars() {
       const n = 40, gap = 4, bw = (w - gap * (n * 2 - 1) - 40) / (n * 2);
@@ -173,6 +194,7 @@
       else if (style === 'ring') drawRing(now);
       else if (style === 'wave') drawWave(now);
       else if (style === 'orbs') drawOrbs(now);
+      else if (style === 'center') drawCenter();
     }
 
     audio.addEventListener('play', () => { ensureAudio(); if (actx && actx.state === 'suspended') actx.resume(); });
@@ -181,9 +203,10 @@
       styles: STYLES,
       setBassTargets(list) { bassTargets = list; },
       setLight(v) { light = !!v; groovesKey = ''; },
+      setColor(c) { fixedColor = c || null; },
       setHue(v) { targetHue = ((v % 360) + 360) % 360; },
       setStyle(s) {
-        if (!STYLES[s]) s = 'ring';
+        if (!STYLES[s]) s = 'center';
         style = s;
         g.clearRect(0, 0, w, h);
         if (s === 'off') { FX.bass = 0; for (const t of bassTargets) t.style.setProperty('--bass', '0'); }

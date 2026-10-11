@@ -220,7 +220,19 @@ export default {
       if (trackMatch) {
         const t = TRACK_BY_ID.get(trackMatch[1]);
         if (!t) return json({ error: "not found" }, 404);
-        return json({ title: t.title ?? t.id, artist: t.artist ?? "", genre: t.genre ?? "", channel: t.channel ?? "" }, 200, { "cache-control": "public, max-age=86400" });
+        return json(
+          {
+            title: t.title ?? t.id,
+            artist: t.artist ?? "",
+            genre: t.genre ?? "",
+            channel: t.channel ?? "",
+            seconds: Math.round(t.totalDuration),
+            segments: t.segments.map((x) => [x.file, x.duration]), // 播放器用來算「這首歌播到哪」
+            tags: t.tags ?? null,
+          },
+          200,
+          { "cache-control": "public, max-age=86400" },
+        );
       }
 
       // 帳號(登入交給 auth-hub)

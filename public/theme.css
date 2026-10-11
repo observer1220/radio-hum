@@ -1,19 +1,18 @@
-/* 最簡單的白色主題:只有幾個顏色變數。 */
+/* 黑白兩套配色。<html class="dark"> 或 <html class="light">(播放器與嵌入版共用)。
+   只有黑、白、灰,沒有任何彩色。 */
 :root {
-  --bg: #ffffff;
-  --text: #111111;
-  --muted: #6b6b6b;
-  --line: #e3e3e3;
-  --surface: #f5f5f5;
-  --accent: #111111;
-  --accent-ink: #ffffff;
-  --danger: #c0392b;
-  --font: system-ui, -apple-system, "Segoe UI", "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
-  --r: 10px;
-  color-scheme: light;
+  --sans: system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
 }
-/* 嵌入版 ?theme=dark 才會用到 */
-:root.dark {
-  --bg: #121212; --text: #f2f2f2; --muted: #9a9a9a; --line: #2c2c2c; --surface: #1d1d1d; --accent: #f2f2f2; --accent-ink: #111111; --danger: #ff8a8a;
+html.dark {
+  --page: #0b0b0d; --page-fg: #f2f2f3;
+  --bg: #1c1c1f; --panel: #2b2b2f; --fg: #ffffff; --muted: #8e8e93; --line: #3d3d42;
+  --btn: #ffffff; --btnfg: #111111; --bar: #ffffff; --danger: #ff8a8a;
   color-scheme: dark;
+}
+html.light {
+  --page: #ffffff; --page-fg: #111111;
+  --bg: #f0f0f1; --panel: #ffffff; --fg: #111111; --muted: #8a8a8e; --line: #d6d6da;
+  --btn: #111111; --btnfg: #ffffff; --bar: #111111; --danger: #c0392b;
+  color-scheme: light;
 }

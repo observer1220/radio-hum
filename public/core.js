@@ -37,7 +37,7 @@
       const seq = ++tuneSeq;
       teardown();
       const url = streamUrl(channel, genre);
-      status('連線中…');
+      status('Connecting…');
 
       if (window.Hls && Hls.isSupported()) {
         hls = new Hls({
@@ -52,8 +52,10 @@
         hls.on(Hls.Events.MANIFEST_PARSED, () => status(''));
         hls.on(Hls.Events.FRAG_CHANGED, async (_e, data) => {
           const m = (data.frag.url || '').split('/live/segments/')[1];
-          const info = m && (await trackInfo(m.split('/')[0].split('?')[0]));
-          if (info && seq === tuneSeq && opts.onTrack) opts.onTrack(info);
+          const parts = m ? m.split('?')[0].split('/') : [];
+          const info = parts[0] && (await trackInfo(parts[0]));
+          // 第二個參數:正在播的是這首歌的哪一段、這一段在播放時間軸上的起點(用來算「這首歌播到哪」)
+          if (info && seq === tuneSeq && opts.onTrack) opts.onTrack(info, { file: parts[1], start: data.frag.start });
         });
         hls.on(Hls.Events.ERROR, (_e, data) => {
           const code = data.response && data.response.code;
@@ -67,7 +69,7 @@
             hls.recoverMediaError();
           } else {
             // 網路中斷(店家網路不穩很常見):幾秒後自動重連
-            status('連線中斷,重新連線…');
+            status('Connection lost, reconnecting…');
             retryTimer = setTimeout(() => { if (seq === tuneSeq) tune(channel, genre); }, 3000);
           }
         });
@@ -75,13 +77,13 @@
         audio.src = url; // Safari / iOS 原生 HLS
         status('');
       } else {
-        status('此瀏覽器不支援 HLS 播放');
+        status('This browser does not support HLS playback');
       }
     }
 
     function play() {
       goLive();
-      return audio.play().catch((e) => status('請再按一次播放(' + e.name + ')'));
+      return audio.play().catch((e) => status('Press play again (' + e.name + ')'));
     }
 
     return { tune, play, pause: () => audio.pause(), goLive, teardown };

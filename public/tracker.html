@@ -11,7 +11,7 @@
   header { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:12px 20px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); z-index:5; }
   header h1 { font-size:1.05rem; margin:0 8px 0 0; }
   .spacer { flex:1; }
-  main { max-width:980px; margin:0 auto; padding:20px; }
+  main { max-width:1240px; margin:0 auto; padding:20px; }
   button, select, input, textarea { font:inherit; color:inherit; }
   .btn { border:1px solid var(--line); background:#fff; border-radius:8px; padding:6px 12px; cursor:pointer; }
   .btn:hover { border-color:var(--text); }
@@ -30,8 +30,8 @@
   .prompt { background:var(--surface); border-radius:8px; padding:8px 10px; margin:8px 0; font:.88rem/1.5 ui-monospace,Menlo,Consolas,monospace; word-break:break-word; }
   .picks { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0; }
   .pick { background:#fff; border:1px solid var(--line); border-radius:999px; padding:1px 10px; font-size:.82rem; }
-  .status { display:inline-flex; gap:4px; }
-  .st { border:1px solid var(--line); background:#fff; border-radius:999px; padding:2px 11px; cursor:pointer; font-size:.85rem; }
+  .status { display:inline-flex; gap:4px; flex-wrap:nowrap; }
+  .st { border:1px solid var(--line); background:#fff; border-radius:999px; padding:2px 11px; cursor:pointer; font-size:.85rem; white-space:nowrap; flex:none; }
   .st.on-kept { background:var(--ok); color:#fff; border-color:var(--ok); }
   .st.on-pending { background:var(--warn); color:#fff; border-color:var(--warn); }
   .st.on-rejected { background:var(--no); color:#fff; border-color:var(--no); }
@@ -39,6 +39,16 @@
   input[type=text], textarea { width:100%; }
   table { width:100%; border-collapse:collapse; font-size:.88rem; }
   th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { white-space:nowrap; }
+  /* 紀錄表:狀態欄不准把「待聽 / 留下 / 淘汰」壓成直式;歌名、備註給足寬度,可以拉高看完整內容 */
+  td.col-id { white-space:nowrap; }
+  td.col-status { min-width:250px; white-space:nowrap; }
+  td.col-status select { margin-top:4px; }
+  td.col-picks { min-width:260px; }
+  td.col-title, td.col-note { min-width:240px; }
+  td textarea { width:100%; min-width:220px; resize:vertical; line-height:1.4; }
+  td.col-actions { white-space:nowrap; }
+  .table-wrap { overflow-x:auto; }
   th { color:var(--muted); font-weight:500; white-space:nowrap; }
   .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
   .axis h4 { margin:0 0 6px; font-size:.9rem; }
@@ -71,7 +81,7 @@
   <div class="row">
     <div class="tabs" id="viewTabs"></div>
     <span class="spacer"></span>
-    <span id="progressText" class="muted"></span>
+    <span id="progressText" class="muted" style="font-weight:600;color:var(--text)"></span>
     <div class="bar" style="width:140px"><i id="progressBar" style="width:0"></i></div>
   </div>
   <div id="view">載入中…</div>
@@ -141,6 +151,19 @@ const distance = (axes, a, b) => Object.keys(axes).filter((k) => a[k] !== b[k]).
 const nextId = (c) => c + '-' + String(Math.max(0, ...logOf(c).map((r) => Number(r.id.split('-')[1]))) + 1).padStart(4, '0');
 const STATUS = { pending: '待聽', kept: '留下', rejected: '淘汰' };
 
+// Suno 一次生成兩首。「歌名」欄可以填多個,用逗號隔開(半形 , 全形 , 頓號 、 都可以)
+const splitNames = (str) => String(str || '').split(/[,\uFF0C\u3001;\uFF1B\n]+/).map((x) => x.trim()).filter(Boolean);
+// 這組提示詞「留下了幾首歌」:不是留下就是 0;填了幾個歌名就至少算幾首;沒填就看下拉(預設 1 首)
+const songCount = (r) => (r.status === 'kept' ? Math.max(r.songs || 1, splitNames(r.title).length) : 0);
+// 留下時才出現的小下拉:這組提示詞兩首都留,選「留 2 首」;或直接在歌名欄用逗號填兩個名字
+function songsControl(r, after) {
+  if (r.status !== 'kept') return null;
+  const sel = h('select', { title: 'Suno 一次生成兩首,這組提示詞留下了幾首', onchange: (e) => { r.songs = Number(e.target.value); save(); after(); } },
+    h('option', { value: '1' }, '留 1 首'), h('option', { value: '2' }, '留 2 首'));
+  sel.value = String(Math.min(2, songCount(r)));
+  return sel;
+}
+
 /* ===================== 產生下一批(盡量和用過的不同) ===================== */
 function generate(n) {
   const ch = cfgOf();
@@ -165,27 +188,53 @@ function generate(n) {
     for (const [a, o] of Object.entries(best.c)) counts[a + '|' + o] = (counts[a + '|' + o] || 0) + 1;
   }
   const now = new Date().toISOString();
-  const made = chosen.map((x) => { const r = { id: nextId(channel), channel, picks: x.c, status: 'pending', note: '', createdAt: now }; db.log.push(r); return r; });
+  const made = chosen.map((x) => { const r = { id: nextId(channel), channel, picks: x.c, status: 'pending', title: '', note: '', createdAt: now }; db.log.push(r); return r; });
   save();
   return made;
 }
 
 /* ===================== 補登舊提示詞(自動比對各軸選項) ===================== */
-function backfill(text, status) {
-  const ch = cfgOf(); const t = text.toLowerCase(); const picks = {}; const missing = [];
+// 拿一段提示詞去比對某個頻道的各軸選項;回傳命中的選項、沒命中的軸
+function matchPrompt(chId, t) {
+  const ch = db.cfg.channels[chId]; const picks = {}; const missing = [];
   for (const [axis, opts] of Object.entries(ch.axes)) {
     const hit = opts.filter((o) => t.includes(o.toLowerCase())).sort((a, b) => b.length - a.length)[0];
     if (hit) picks[axis] = hit; else missing.push(axis);
   }
-  if (!Object.keys(picks).length) return { error: '在這段文字裡找不到任何選項,請確認頻道是否選對' };
-  if (logOf().some((r) => JSON.stringify(r.picks) === JSON.stringify(picks))) return { error: '這個組合已經在紀錄裡了' };
-  const rec = { id: nextId(channel), channel, picks, status, note: '補登', createdAt: new Date().toISOString() };
+  // 基底提示詞的開頭一樣,幾乎可以確定就是這個頻道,給額外加分(兩個頻道選項剛好撞到時用來分高下)
+  const baseHit = ch.base && t.includes(ch.base.toLowerCase().slice(0, 40)) ? 3 : 0;
+  return { picks, missing, hits: Object.keys(picks).length, score: Object.keys(picks).length + baseHit };
+}
+
+// 不用先選對頻道:會拿所有頻道去比對,挑「命中最多」的;目前頻道平手時留在目前頻道
+// wantCh:你選的頻道(空字串 = 自動判斷);title:歌名
+function backfill(text, status, wantCh, title) {
+  const t = text.toLowerCase();
+  let best;
+  if (wantCh) {
+    // 你明確選了頻道:只拿這個頻道的選項比對
+    best = { chId: wantCh, ...matchPrompt(wantCh, t) };
+    if (!best.hits) return { error: '這段提示詞和「' + db.cfg.channels[wantCh].name + '」頻道的選項對不上。如果不確定是哪個頻道,頻道請選「自動判斷」。' };
+  } else {
+    best = { chId: channel, ...matchPrompt(channel, t) };
+    for (const chId of Object.keys(db.cfg.channels)) {
+      if (chId === channel) continue;
+      const m = matchPrompt(chId, t);
+      if (m.score > best.score) best = { chId, ...m };
+    }
+    if (!best.hits) return { error: '在這段文字裡找不到任何頻道的選項。請確認貼的是 Suno 的 Style 提示詞(含 bpm、場景等),或先到「設定」確認各軸選項。' };
+  }
+  const switchedFrom = best.chId !== channel ? channel : null;
+  if (switchedFrom) channel = best.chId; // nextId / logOf 都看目前頻道,所以先切過去
+  if (logOf().some((r) => JSON.stringify(r.picks) === JSON.stringify(best.picks))) return { error: '這個組合已經在「' + cfgOf().name + '」的紀錄裡了', switched: !!switchedFrom };
+  const rec = { id: nextId(channel), channel, picks: best.picks, status, title: (title || '').trim(), songs: Math.max(1, splitNames(title).length), note: '補登', createdAt: new Date().toISOString() };
   db.log.push(rec); save();
-  return { rec, missing };
+  return { rec, missing: best.missing, switched: !!switchedFrom };
 }
 
 /* ===================== 畫面 ===================== */
 let lastBatch = []; // 這次剛產生的
+let flash = ''; // 補登時自動切換頻道會整頁重畫,訊息先存在這裡,重畫後顯示
 function statusButtons(r, rerender) {
   return h('span', { class: 'status' }, Object.entries(STATUS).map(([k, label]) =>
     h('button', { class: 'st' + (r.status === k ? ' on-' + k : ''), onclick: () => { r.status = k; save(); rerender(); } }, label)));
@@ -197,11 +246,14 @@ function cardFor(r, rerender) {
     h('div', { class: 'top' },
       h('span', { class: 'id' }, r.id),
       statusButtons(r, rerender),
+      songsControl(r, rerender),
       h('span', { class: 'spacer' }),
       h('button', { class: 'btn small', onclick: (e) => copy(prompt, e.target) }, '複製提示詞')),
     h('div', { class: 'prompt' }, prompt),
     h('div', { class: 'picks' }, Object.entries(r.picks).map(([a, o]) => h('span', { class: 'pick', title: a }, o))),
-    h('input', { type: 'text', placeholder: '備註(例如:歌名、為什麼淘汰)', value: r.note || '', onchange: (e) => { r.note = e.target.value; save(); } }));
+    h('div', { class: 'row' },
+      h('input', { type: 'text', placeholder: '歌名(兩首都留就用逗號隔開,例如:Rainy Window, Quiet Spa)', value: r.title || '', style: 'flex:1;min-width:180px', onchange: (e) => { r.title = e.target.value; save(); rerender(); } }),
+      h('input', { type: 'text', placeholder: '備註(例如:為什麼淘汰)', value: r.note || '', style: 'flex:1;min-width:180px', onchange: (e) => { r.note = e.target.value; save(); } })));
 }
 
 function viewGen() {
@@ -211,7 +263,7 @@ function viewGen() {
   const list = h('div');
   const draw = () => { list.replaceChildren(...lastBatch.filter((r) => db.log.includes(r)).map((r) => cardFor(r, () => { draw(); renderHeader(); }))); };
   box.append(
-    h('div', { class: 'help' }, '按「產生」會挑出和你之前用過的組合差最多的提示詞。複製到 Suno 之後,聽完在卡片上按「留下」或「淘汰」就記錄好了,不用打任何指令。'),
+    h('div', { class: 'help' }, '按「產生」會挑出和你之前用過的組合差最多的提示詞。複製到 Suno 之後,聽完在卡片上按「留下」或「淘汰」。Suno 一次生成兩首:兩首都留的話,選「留 2 首」,或在歌名欄用逗號隔開兩個名字,進度會自動算成 2 首。'),
     h('div', { class: 'row' },
       h('button', { class: 'btn primary', onclick: () => { const made = generate(Math.max(1, Number(n.value) || 5)); if (made) { lastBatch = made; draw(); renderHeader(); } } }, '產生'),
       n, h('span', null, '組提示詞'),
@@ -230,34 +282,54 @@ function viewLog() {
   const rows = h('tbody');
   const tools = h('div', { class: 'row' },
     h('span', { class: 'muted' }, '篩選:'),
-    ...['all', 'pending', 'kept', 'rejected'].map((k) => h('button', { class: 'tab' + (filter === k ? ' active' : ''), onclick: () => { filter = k; render(); } }, k === 'all' ? '全部' : STATUS[k])));
+    ...['all', 'pending', 'kept', 'rejected'].map((k) => h('button', { class: 'tab' + (filter === k ? ' active' : ''), onclick: () => { filter = k; render(); } }, k === 'all' ? '全部' : STATUS[k])),
+    h('span', { class: 'spacer' }),
+    h('button', { class: 'btn small', title: '歌名欄是空的、備註有內容的紀錄,把備註搬到歌名欄(只處理目前這個頻道)', onclick: () => migrateNotes() }, '把備註裡的歌名搬到歌名欄'));
+  // 以前歌名是寫在備註(用逗號隔開)。歌名欄空白、備註有內容(不是自動填的「補登」)的紀錄,把備註移過去
+  const migrateNotes = () => {
+    const todo = logOf().filter((r) => !(r.title || '').trim() && (r.note || '').trim() && r.note.trim() !== '補登');
+    if (!todo.length) return alert('沒有需要搬的紀錄。\n(只有「歌名欄是空的、備註有內容」的紀錄會被處理)');
+    const sample = todo.slice(0, 5).map((r) => r.id + ':「' + r.note.trim() + '」').join('\n');
+    if (!confirm('目前頻道有 ' + todo.length + ' 筆紀錄的歌名是空的、備註有內容。\n要把備註的內容移到「歌名」欄嗎?(備註會清空,之後都還能再編輯)\n\n例如:\n' + sample)) return;
+    for (const r of todo) { r.title = r.note.trim(); r.note = ''; }
+    save(); render();
+  };
   const draw = () => {
     const list = logOf().filter((r) => filter === 'all' || r.status === filter).slice().reverse();
     rows.replaceChildren(...list.map((r) => h('tr', null,
-      h('td', { class: 'id' }, r.id),
-      h('td', null, statusButtons(r, () => { draw(); renderHeader(); })),
-      h('td', null, Object.values(r.picks).join(' / ')),
-      h('td', null, h('input', { type: 'text', value: r.note || '', onchange: (e) => { r.note = e.target.value; save(); } })),
-      h('td', null,
+      h('td', { class: 'id col-id' }, r.id),
+      h('td', { class: 'col-status' }, statusButtons(r, () => { draw(); renderHeader(); }), h('br'), songsControl(r, () => { draw(); renderHeader(); })),
+      h('td', { class: 'col-title' }, h('textarea', { rows: 2, value: r.title || '', placeholder: '歌名(兩首都留就用逗號隔開)', onchange: (e) => { r.title = e.target.value; save(); draw(); renderHeader(); } })),
+      h('td', { class: 'col-picks' }, Object.values(r.picks).join(' / ')),
+      h('td', { class: 'col-note' }, h('textarea', { rows: 2, value: r.note || '', placeholder: '備註', onchange: (e) => { r.note = e.target.value; save(); } })),
+      h('td', { class: 'col-actions' },
         h('button', { class: 'btn small', onclick: (e) => copy(buildPrompt(cfgOf(r.channel), r.picks), e.target) }, '複製'), ' ',
         h('button', { class: 'btn small danger', onclick: () => { if (confirm('刪除 ' + r.id + '?')) { db.log.splice(db.log.indexOf(r), 1); save(); draw(); renderHeader(); } } }, '刪除')))));
-    if (!list.length) rows.append(h('tr', null, h('td', { colspan: 5, class: 'muted' }, '沒有紀錄')));
+    if (!list.length) rows.append(h('tr', null, h('td', { colspan: 6, class: 'muted' }, '沒有紀錄')));
   };
   // 補登
-  const ta = h('textarea', { rows: 3, placeholder: '貼上你以前用過的完整提示詞,按「補登」,會自動比對出每個軸用了哪個選項' });
+  const ta = h('textarea', { rows: 3, placeholder: '貼上你以前用過的完整提示詞,按「補登」。會自動判斷是哪個頻道、並比對出每個軸用了哪個選項' });
   const st = h('select', null, h('option', { value: 'kept' }, '留下'), h('option', { value: 'rejected' }, '淘汰'), h('option', { value: 'pending' }, '待聽'));
-  const msg = h('span', { class: 'muted' });
+  // 頻道:預設自動判斷(拿所有頻道去比對);也可以自己指定
+  const chSel = h('select', null, h('option', { value: '' }, '自動判斷'),
+    ...Object.entries(db.cfg.channels).map(([id, c]) => h('option', { value: id }, c.name || id)));
+  const titleIn = h('input', { type: 'text', placeholder: '歌名,兩首都留就用逗號隔開(例如:Rainy Window, Quiet Spa)', style: 'flex:1;min-width:260px' });
+  const msg = h('span', { class: 'muted' }, flash); flash = '';
   const add = h('div', { class: 'help' },
     h('strong', null, '補登舊紀錄'),
     ta,
+    h('div', { class: 'row' }, '頻道:', chSel, '歌名:', titleIn),
     h('div', { class: 'row' },
       h('button', { class: 'btn primary', onclick: () => {
-        const res = backfill(ta.value, st.value);
-        if (res.error) { msg.textContent = res.error; return; }
-        msg.textContent = '已補登 ' + res.rec.id + (res.missing.length ? '(找不到對應選項而略過:' + res.missing.join('、') + ')' : '');
-        ta.value = ''; draw(); renderHeader();
+        const res = backfill(ta.value, st.value, chSel.value, titleIn.value);
+        if (res.error) { msg.textContent = res.error; if (res.switched) { flash = res.error; render(); } return; }
+        const text = '已補登 ' + res.rec.id + (res.switched ? (chSel.value ? '(已切換到「' + cfgOf().name + '」頻道)' : '(自動判斷是「' + cfgOf().name + '」頻道,已切換過去)') : '')
+          + (res.missing.length ? ';找不到對應選項而略過:' + res.missing.join('、') : '');
+        if (res.switched) { flash = text; render(); return; } // 頻道變了,整頁重畫(分頁、進度、紀錄表都要換)
+        msg.textContent = text;
+        ta.value = ''; titleIn.value = ''; draw(); renderHeader();
       } }, '補登'), '狀態:', st, msg));
-  box.append(tools, h('table', null, h('thead', null, h('tr', null, ['編號', '狀態', '組合', '備註', ''].map((t) => h('th', null, t)))), rows), h('div', { style: 'height:16px' }), add);
+  box.append(tools, h('div', { class: 'table-wrap' }, h('table', null, h('thead', null, h('tr', null, ['編號', '狀態', '歌名', '組合', '備註', ''].map((t) => h('th', null, t)))), rows)), h('div', { style: 'height:16px' }), add);
   draw();
   return box;
 }
@@ -383,8 +455,8 @@ function download(name, text, type) {
 $('btnCsv').onclick = () => {
   const names = [...new Set(Object.values(db.cfg.channels).flatMap((c) => Object.keys(c.axes)))];
   const esc = (s) => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
-  const rows = [['編號', '頻道', '狀態', '備註', ...names, '完整提示詞', '建立時間']];
-  for (const r of db.log) rows.push([r.id, r.channel, STATUS[r.status] || r.status, r.note, ...names.map((a) => r.picks[a] || ''), cfgOf(r.channel) ? buildPrompt(cfgOf(r.channel), r.picks) : '', r.createdAt]);
+  const rows = [['編號', '頻道', '狀態', '留下首數', '歌名', '備註', ...names, '完整提示詞', '建立時間']];
+  for (const r of db.log) rows.push([r.id, r.channel, STATUS[r.status] || r.status, songCount(r), r.title, r.note, ...names.map((a) => r.picks[a] || ''), cfgOf(r.channel) ? buildPrompt(cfgOf(r.channel), r.picks) : '', r.createdAt]);
   download('suno-prompts-' + new Date().toISOString().slice(0, 10) + '.csv', '﻿' + rows.map((r) => r.map(esc).join(',')).join('\n'), 'text/csv');
 };
 $('btnJson').onclick = () => download('suno-tracker-backup-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(db, null, 1), 'application/json');
@@ -405,8 +477,8 @@ $('fileImport').onchange = async (e) => {
 function renderHeader() {
   $('channelTabs').replaceChildren(...Object.entries(db.cfg.channels).map(([id, c]) =>
     h('button', { class: 'tab' + (id === channel ? ' active' : ''), onclick: () => { channel = id; lastBatch = []; render(); } }, c.name || id)));
-  const kept = logOf().filter((r) => r.status === 'kept').length, t = cfgOf().target || 20;
-  $('progressText').textContent = '留下 ' + kept + ' / 目標 ' + t + '(待聽 ' + logOf().filter((r) => r.status === 'pending').length + ')';
+  const kept = logOf().reduce((sum, r) => sum + songCount(r), 0), t = cfgOf().target || 20; // 留下的「首數」
+  $('progressText').textContent = '目前頻道:' + (cfgOf().name || channel) + ' ・ 留下 ' + kept + ' 首 / 目標 ' + t + ' 首(待聽 ' + logOf().filter((r) => r.status === 'pending').length + ' 組提示詞)';
   $('progressBar').style.width = Math.min(100, (kept / t) * 100) + '%';
   $('viewTabs').replaceChildren(...[['gen', '產生'], ['log', '紀錄'], ['cov', '覆蓋率 & 心智圖'], ['lib', '歌庫'], ['set', '設定']].map(([k, label]) =>
     h('button', { class: 'tab' + (view === k ? ' active' : ''), onclick: () => { view = k; render(); } }, label)));

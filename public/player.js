@@ -1,11 +1,12 @@
 (function () {
   const $ = (id) => document.getElementById(id);
+  const root = document.documentElement;
   const audio = new Audio();
   audio.preload = 'none';
   const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // 收聽免費、不用登入。登入與付款只用來開通「嵌入到自己網站」的進階功能。
-  const state = { me: null, channels: [], channel: null, genre: '', started: false };
+  // 收聽免費、不用登入。登入與付費只用來開通「嵌入到自己網站」的進階功能。
+  const state = { me: null, channels: [], channel: null, genre: '', started: false, track: null };
 
   // ---------- 小工具 ----------
   function el(tag, props, ...kids) {
@@ -25,141 +26,197 @@
     return data;
   }
   const post = (path, body) => api(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
-  const setStatus = (t, isErr) => { const s = $('status'); s.textContent = t; s.classList.toggle('err', !!isErr); };
+  const setStatus = (msg, isErr) => { const s = $('status'); s.textContent = msg; s.classList.toggle('err', !!isErr); };
+  const fmt = (s) => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 
-  // ---------- 播放器 ----------
+  // ---------- 黑 / 白主題 ----------
+  const barColor = () => getComputedStyle(root).getPropertyValue('--bar').trim() || '#fff';
+  $('btn-theme').addEventListener('click', () => {
+    const next = root.classList.contains('dark') ? 'light' : 'dark';
+    root.className = next;
+    try { localStorage.setItem('theme', next); } catch (e) { /* 無痕模式 */ }
+    vis.setColor(barColor());
+  });
+
+  // ---------- 播放 ----------
   const player = RadioPlayer(audio, {
-    onStatus: (t) => {
-      setStatus(t, /中斷|不支援|失敗/.test(t));
-      $('play').classList.toggle('loading', /連線中|載入中/.test(t));
+    onStatus: (msg) => {
+      setStatus(msg, /lost|not support|again/i.test(msg));
+      $('play').classList.toggle('loading', /connecting|loading/i.test(msg));
     },
-    onTrack: (info) => {
-      $('title').textContent = info.title;
-      $('artist').textContent = info.artist;
-      if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: info.title, artist: info.artist || 'Radio Hum' });
+    onTrack: (info, frag) => {
+      // 記下正在播的是這首歌的第幾段,之後每半秒就能算出「這首歌播到哪」
+      const cum = []; let acc = 0;
+      for (const [, d] of info.segments || []) { cum.push(acc); acc += d; }
+      const idx = (info.segments || []).findIndex((s) => s[0] === frag.file);
+      state.track = { info, cum, idx: Math.max(0, idx), start: frag.start };
+      renderTrack();
+      if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: state.channel ? state.channel.name : 'Radio Hum', artist: tagLine(info) || info.title });
     },
-    onDenied: () => { setStatus('無法連線到這個頻道,請重新整理頁面', true); $('play').classList.remove('loading'); },
+    onDenied: () => { setStatus(t('cannotConnect'), true); $('play').classList.remove('loading'); },
   });
   audio.addEventListener('playing', () => $('play').classList.remove('loading'));
-  audio.addEventListener('play', () => { $('play').classList.add('playing'); $('play').setAttribute('aria-label', '暫停'); $('live').classList.add('on'); });
-  audio.addEventListener('pause', () => { $('play').classList.remove('playing', 'loading'); $('play').setAttribute('aria-label', '播放'); $('live').classList.remove('on'); });
+  audio.addEventListener('play', () => { $('play').classList.add('playing'); $('play').setAttribute('aria-label', t('pause')); $('card').classList.remove('paused'); });
+  audio.addEventListener('pause', () => { $('play').classList.remove('playing', 'loading'); $('play').setAttribute('aria-label', t('play')); $('card').classList.add('paused'); });
 
-  // ---------- 動畫(小小的音量條,可在上方選單關閉) ----------
+  // 這首歌播到哪:已播段落的總長 + 目前這一段播了多久
+  setInterval(() => {
+    const tr = state.track;
+    if (!tr || !tr.info.seconds || audio.paused) return;
+    const segDur = (tr.info.segments[tr.idx] || [0, 10])[1];
+    const within = Math.min(Math.max(audio.currentTime - tr.start, 0), segDur);
+    const elapsed = Math.min((tr.cum[tr.idx] || 0) + within, tr.info.seconds);
+    $('prog').style.width = (elapsed / tr.info.seconds) * 100 + '%';
+    $('t-el').textContent = fmt(elapsed);
+    $('t-rem').textContent = '-' + fmt(Math.max(tr.info.seconds - elapsed, 0));
+  }, 500);
+
+  // ---------- 動畫(置中直條;偏好「減少動態」的人不畫) ----------
   const vis = new Visualizer($('vis'), audio);
-  vis.setLight(true);
-  vis.setBassTargets([]); // 白底版面沒有用到 --bass
-  const styleSel = $('vis-style');
-  for (const [k, name] of Object.entries(vis.styles)) styleSel.append(el('option', { value: k }, name));
-  let saved = null;
-  try { saved = localStorage.getItem('vis'); } catch (e) { /* 無痕模式 */ }
-  styleSel.value = vis.styles[saved] ? saved : reduceMotion ? 'off' : 'bars';
-  function applyStyle() {
-    vis.setStyle(styleSel.value);
-    $('vis').classList.toggle('hidden', styleSel.value === 'off');
-  }
-  applyStyle();
+  vis.setBassTargets([]); // 黑白版面沒有用到 --bass
+  vis.setLight(root.classList.contains('light'));
+  vis.setColor(barColor());
+  vis.setStyle(reduceMotion ? 'off' : 'center');
   vis.start();
-  styleSel.addEventListener('change', () => {
-    applyStyle();
-    try { localStorage.setItem('vis', styleSel.value); } catch (e) { /* ignore */ }
+
+  // ---------- 這首歌的「特色」 ----------
+  // tags 是生成這首歌時的提示詞各軸選項(例如 速度:72 bpm、場景:rainy window)。沒有的話就顯示曲名。
+  const AXIS = { '速度': 'Tempo', '主奏': 'Lead', '風格偏向': 'Style', '場景': 'Scene', '點綴音': 'Texture', '質感': 'Texture', '結構': 'Structure', '調性氣質': 'Mood', '情緒': 'Mood' };
+  const tagLine = (info) => (info && info.tags ? Object.values(info.tags).filter((v) => v && v !== '—').slice(0, 3).join(' · ') : '');
+  function renderTrack() {
+    const tr = state.track;
+    if (!tr) return;
+    const line = tagLine(tr.info);
+    $('sub').textContent = line || [tr.info.title, tr.info.artist].filter(Boolean).join(' · ');
+    const hasRecipe = !!tr.info.tags;
+    $('btn-recipe').classList.toggle('hidden', !hasRecipe);
+    if (hasRecipe) {
+      $('recipe').replaceChildren(
+        ...Object.entries(tr.info.tags).map(([k, v]) => el('div', {}, el('span', {}, AXIS[k] || k), el('span', {}, v))),
+        el('small', {}, t('recipeNote')));
+    } else {
+      $('recipe').classList.remove('on'); $('btn-recipe').classList.remove('on');
+    }
+  }
+  $('btn-recipe').addEventListener('click', () => {
+    const on = $('recipe').classList.toggle('on');
+    $('btn-recipe').classList.toggle('on', on);
   });
 
   // ---------- 頻道與曲風 ----------
   const genreName = (ch, gid) => { const g = gid && ch.genres.find((x) => x.id === gid); return g ? g.name : ''; };
 
-  function renderWhere() {
+  function renderStage() {
     const ch = state.channel;
     if (!ch) return;
+    $('title').textContent = ch.name;
     const g = genreName(ch, state.genre);
-    $('where').textContent = ch.name + (g ? ' ・ ' + g : '');
-    document.title = ch.name + (g ? ' ・ ' + g : '') + ' | Radio Hum';
+    document.title = ch.name + (g ? ' · ' + g : '') + ' · Radio Hum';
   }
-
-  function renderMenus() {
+  function renderPills() {
     $('channels').replaceChildren(...state.channels.map((c) =>
-      el('button', { class: 'channel' + (state.channel && state.channel.id === c.id ? ' active' : ''), onclick: () => selectChannel(c, '') },
-        el('span', { class: 'name' }, c.name),
-        el('span', { class: 'meta' }, c.trackCount + ' 首 ・ 約 ' + c.minutes + ' 分鐘'))));
-
+      el('button', { class: 'pill', type: 'button', 'aria-pressed': String(!!state.channel && state.channel.id === c.id), onclick: () => selectChannel(c, '') }, c.name)));
     const ch = state.channel;
     $('genres').replaceChildren(...(ch && ch.genres.length ? [
-      el('button', { class: 'chip' + (!state.genre ? ' active' : ''), onclick: () => selectChannel(ch, '') }, '全部曲風'),
-      ...ch.genres.map((g) => el('button', { class: 'chip' + (state.genre === g.id ? ' active' : ''), onclick: () => selectChannel(ch, g.id) }, g.name, el('span', { class: 'n' }, g.count))),
+      el('button', { class: 'pill', type: 'button', 'aria-pressed': String(!state.genre), onclick: () => selectChannel(ch, '') }, t('anyGenre')),
+      ...ch.genres.map((g) => el('button', { class: 'pill', type: 'button', 'aria-pressed': String(state.genre === g.id), onclick: () => selectChannel(ch, g.id) }, g.name)),
     ] : []));
+    const active = $('channels').querySelector('[aria-pressed="true"]');
+    if (active && active.scrollIntoView) active.scrollIntoView({ inline: 'center', block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
   }
 
   function selectChannel(ch, genre) {
     state.channel = ch;
     state.genre = genre || '';
+    state.track = null;
     try { localStorage.setItem('last', ch.id + '/' + state.genre); } catch (e) { /* ignore */ }
     history.replaceState(null, '', '#' + ch.id + (state.genre ? '/' + state.genre : ''));
-    renderWhere();
-    renderMenus();
+    renderStage();
+    renderPills();
+    $('sub').textContent = t('tuning');
+    $('btn-recipe').classList.add('hidden'); $('recipe').classList.remove('on');
+    $('prog').style.width = '0'; $('t-el').textContent = ''; $('t-rem').textContent = '';
     tune();
     player.play();
   }
+  function stepChannel(dir) {
+    const list = state.channels;
+    if (!list.length) return;
+    const i = Math.max(0, list.findIndex((c) => state.channel && c.id === state.channel.id));
+    selectChannel(list[(i + dir + list.length) % list.length], '');
+  }
+  $('btn-prev').addEventListener('click', () => stepChannel(-1));
+  $('btn-next').addEventListener('click', () => stepChannel(1));
 
   // ---------- 播放控制 ----------
   $('vol').addEventListener('input', (e) => (audio.volume = e.target.value));
   $('play').addEventListener('click', togglePlay);
   function togglePlay() {
-    if (!state.channel) return setStatus('先選一個頻道');
+    if (!state.channel) return;
     if (!audio.paused) return player.pause();
     if (!state.started) tune();
     player.play();
   }
   function tune() {
     state.started = true;
-    $('title').textContent = '載入中…';
-    $('artist').textContent = '';
     player.tune(state.channel.id, state.genre);
   }
   const dlg = $('embed-dialog');
   document.addEventListener('keydown', (e) => {
-    if (e.code !== 'Space' || dlg.open || /^(INPUT|SELECT|TEXTAREA|BUTTON|A)$/.test(document.activeElement.tagName)) return;
-    e.preventDefault();
-    togglePlay();
+    if (dlg.open || /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+    if (e.code === 'Space' && !/^(BUTTON|A)$/.test(document.activeElement.tagName)) { e.preventDefault(); togglePlay(); }
+    else if (e.key === 'ArrowRight') stepChannel(1);
+    else if (e.key === 'ArrowLeft') stepChannel(-1);
+    else if (e.key === 'm' || e.key === 'M') { audio.muted = !audio.muted; setStatus(audio.muted ? t('muted') : ''); }
   });
 
   // ---------- 帳號(只為了嵌入功能) ----------
   async function refreshMe() { state.me = await api('/api/me'); return state.me; }
-
   function renderHeader() {
     const me = state.me;
     $('who').textContent = me.loggedIn ? me.name || me.email : '';
-    $('btn-login').classList.toggle('hidden', me.loggedIn); // 沒登入就一定看得到登入按鈕
+    $('btn-login').classList.toggle('hidden', me.loggedIn); // 沒登入就一定看得到登入連結
     $('btn-logout').classList.toggle('hidden', !me.loggedIn);
     $('btn-admin').classList.toggle('hidden', !me.isAdmin);
     if (me.adminConsoleUrl) $('btn-admin').href = me.adminConsoleUrl; // 開通 / 關閉使用者在 auth-hub 後台做
     $('btn-tracker').classList.toggle('hidden', !me.isAdmin);
   }
-
   $('btn-logout').addEventListener('click', async () => {
     await fetch('/auth/logout', { method: 'POST' }); // 只登出 Radio Hum,不影響其他共用 auth-hub 的站
     await refreshMe(); renderHeader();
   });
 
   // ---------- 嵌入功能對話框:依狀態顯示「登入」/「訂閱」/「金鑰管理」 ----------
+  // 對話框的固定文字
+  $('d-title').textContent = t('embedTitle');
+  $('d-intro').textContent = t('embedIntro');
+  $('d-keyshelp').textContent = t('keysHelp');
+  $('d-newkey').textContent = t('newKey');
+  $('key-label').placeholder = t('keyName');
+  $('key-origins').placeholder = t('keyOrigins');
+  $('key-create').textContent = t('createKey');
+  $('embed-close').textContent = t('close');
+
   async function renderKeys() {
     const { keys } = await api('/api/keys');
     const ch = state.channel ? state.channel.id : 'all';
     const path = '/embed/' + ch + (state.genre ? '/' + state.genre : '');
     $('key-list').replaceChildren(...(keys.length ? keys.map((k) => {
-      const iframe = '<iframe src="' + location.origin + path + '?key=' + k.key + '" width="100%" height="96" style="border:0" allow="autoplay"></iframe>';
+      const iframe = '<iframe src="' + location.origin + path + '?key=' + k.key + '" width="100%" height="76" style="border:0;border-radius:18px" allow="autoplay"></iframe>';
       const stream = location.origin + '/live/' + ch + (state.genre ? '/' + state.genre : '') + '/playlist.m3u8?key=' + k.key;
+      const validity = state.me.isAdmin ? t('neverExpires') : t('validUntil', { date: new Date(k.entitledUntil).toLocaleDateString() });
       return el('div', { class: 'keyitem' },
-        el('div', { class: 'row' }, el('strong', {}, k.label), el('span', { class: 'muted' }, k.origins.length ? k.origins.join(', ') : '不限網站'),
-          el('span', { class: 'muted' }, state.me.isAdmin ? '不會過期' : '有效至 ' + new Date(k.entitledUntil).toLocaleDateString() + '(登入時自動延長)'),
-          el('button', { class: 'btn small danger', onclick: async () => { if (confirm('刪除後使用這把金鑰的網站會立刻停止播放,確定?')) { await api('/api/keys/' + k.key, { method: 'DELETE' }); renderKeys(); } } }, '刪除')),
-        el('div', { class: 'muted' }, '目前所選頻道的 iframe 嵌入碼:'),
+        el('div', { class: 'row' }, el('strong', {}, k.label), el('span', { class: 'muted' }, k.origins.length ? k.origins.join(', ') : t('anySite')), el('span', { class: 'muted' }, validity),
+          el('button', { class: 'btn small danger', type: 'button', onclick: async () => { if (confirm(t('confirmDelete'))) { await api('/api/keys/' + k.key, { method: 'DELETE' }); renderKeys(); } } }, t('del'))),
+        el('div', { class: 'muted' }, t('iframeLabel')),
         el('pre', { class: 'code' }, iframe),
-        el('div', { class: 'muted' }, '串流網址(自訂播放器 / App 用,HLS):'),
+        el('div', { class: 'muted' }, t('streamLabel')),
         el('pre', { class: 'code' }, stream));
-    }) : [el('p', { class: 'muted' }, '還沒有金鑰。')]));
+    }) : [el('p', { class: 'muted' }, t('noKeys'))]));
   }
 
   async function openEmbed() {
-    try { await refreshMe(); } catch (e) { setStatus('讀取帳號狀態失敗:' + e.message, true); return; }
+    try { await refreshMe(); } catch (e) { setStatus(t('loadFailed', { msg: e.message }), true); return; }
     renderHeader();
     const me = state.me;
     const box = $('embed-state');
@@ -167,17 +224,17 @@
     $('embed-keys').classList.add('hidden');
 
     if (!me.loggedIn) {
-      box.append(el('p', {}, '第一步:登入你的帳號。'));
-      box.append(el('a', { class: 'btn primary', href: '/auth/login?next=/' }, '用 Google 登入'));
+      box.append(el('p', {}, t('step1')));
+      box.append(el('a', { class: 'btn primary', href: '/auth/login?next=/' }, t('signInGoogle')));
       if (me.devLogin) {
-        const input = el('input', { type: 'email', placeholder: '開發測試:輸入 email' });
-        box.append(el('form', { class: 'row', onsubmit: (e) => { e.preventDefault(); location.href = '/auth/dev?email=' + encodeURIComponent(input.value); } }, input, el('button', { class: 'btn small' }, '登入')));
+        const input = el('input', { type: 'email', placeholder: t('devEmail') });
+        box.append(el('form', { class: 'row', onsubmit: (e) => { e.preventDefault(); location.href = '/auth/dev?email=' + encodeURIComponent(input.value); } }, input, el('button', { class: 'btn small' }, t('signIn'))));
       }
     } else if (!me.entitled) {
-      box.append(el('p', {}, '你已登入(' + me.email + '),但尚未開通嵌入功能。'));
-      if (me.subscribeUrl) box.append(el('a', { class: 'btn primary', href: me.subscribeUrl, target: '_blank', rel: 'noopener' }, '前往訂閱'));
-      box.append(el('p', { class: 'muted' }, '已付款但還沒開通?請聯絡管理員,在 auth-hub 後台開通這個帳號的「radio-hum / embed」。開通後重新按一次「登入」就會生效。'));
-      box.append(el('button', { class: 'btn small', onclick: () => { location.href = '/auth/login?next=/'; } }, '我已開通,重新確認'));
+      box.append(el('p', {}, t('signedInNotEnabled', { email: me.email })));
+      if (me.subscribeUrl) box.append(el('a', { class: 'btn primary', href: me.subscribeUrl, target: '_blank', rel: 'noopener' }, t('subscribe')));
+      box.append(el('p', { class: 'muted' }, t('enableHelp')));
+      box.append(el('button', { class: 'btn small', type: 'button', onclick: () => { location.href = '/auth/login?next=/'; } }, t('checkAgain')));
     } else {
       $('embed-keys').classList.remove('hidden');
       await renderKeys();
@@ -199,7 +256,7 @@
     const [dir] = await Promise.all([api('/api/channels'), refreshMe().catch(() => null)]);
     state.channels = dir.channels;
     if (state.me) renderHeader();
-    if (!state.channels.length) { $('channels').textContent = '目前還沒有頻道。請先放入歌曲並執行 npm run convert。'; return; }
+    if (!state.channels.length) { $('title').textContent = t('noChannels'); return; }
 
     let want = location.hash.slice(1);
     try { want = want || localStorage.getItem('last') || ''; } catch (e) { /* ignore */ }
@@ -207,8 +264,9 @@
     const found = state.channels.find((c) => c.id === cid) || state.channels[0];
     state.channel = found;
     state.genre = found.genres.some((g) => g.id === gid) ? gid : '';
-    renderWhere();
-    renderMenus();
+    renderStage();
+    renderPills();
+    $('sub').textContent = found.description || '';
   }
-  init().catch((e) => setStatus('載入失敗:' + e.message, true));
+  init().catch((e) => setStatus(t('loadFailed', { msg: e.message }), true));
 })();

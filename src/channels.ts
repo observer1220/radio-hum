@@ -42,7 +42,7 @@ export function buildDirectory(tracks: CatalogTrack[], cfg: ChannelsConfig) {
     .map((c) => describe(c.id, c.name, c.category, c.description, music.filter((t) => trackChannel(t) === c.id), c))
     .filter((c) => c.trackCount > 0);
   if (music.length > 0) {
-    channels.push(describe(ALL_CHANNEL, "綜合", "all", "所有頻道的歌混在一起播", music, { en: "All Day", freq: "ALL", tagline: "四個頻道,一起播" }));
+    channels.push(describe(ALL_CHANNEL, "All Day", "all", "Every channel, shuffled together", music, { en: "All Day", freq: "ALL", tagline: "Every channel, shuffled together" }));
   }
   const usedCategories = new Set(channels.map((c) => c.category));
   const categories = [
