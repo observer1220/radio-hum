@@ -408,15 +408,18 @@ function viewLibrary() {
   const q = h('input', { type: 'text', placeholder: '搜尋曲名 / 創作者', value: libQuery, style: 'max-width:240px' });
   q.addEventListener('change', () => { libQuery = q.value; render(); });
   q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { libQuery = q.value; render(); } });
+  // 特色標籤:用「歌名」去對提示詞紀錄(只有「留下」的紀錄才算)。對不到的歌,播放器會退回顯示曲名
+  const tagCell = (t) => (t.tags ? Object.values(t.tags).filter((v) => v && v !== '—').slice(0, 3).join(' · ') : '—(對不到:請在「紀錄」填上相同的歌名並設為留下)');
+  const tagged = lib.tracks.filter((t) => t.tags).length;
   const perChannel = {};
   for (const t of lib.tracks) { const k = chName(t.channel); perChannel[k] = (perChannel[k] || 0) + 1; }
   const total = lib.tracks.reduce((s, t) => s + t.seconds, 0);
   box.append(
-    h('div', { class: 'help' }, '這裡是「已經部署上線」的歌(轉檔後要 deploy 才會出現)。共 ' + lib.tracks.length + ' 首、約 ' + Math.round(total / 60) + ' 分鐘:' + Object.entries(perChannel).map(([k, v]) => k + ' ' + v).join('、')),
+    h('div', { class: 'help' }, '這裡是「已經部署上線」的歌(轉檔後要 deploy 才會出現)。共 ' + lib.tracks.length + ' 首、約 ' + Math.round(total / 60) + ' 分鐘:' + Object.entries(perChannel).map(([k, v]) => k + ' ' + v).join('、') + '。已對到特色標籤:' + tagged + ' / ' + lib.tracks.length + ' 首'),
     h('div', { class: 'row' }, sel, q, h('span', { class: 'muted' }, '顯示 ' + tracks.length + ' 首(輸入後按 Enter 搜尋)')),
     h('table', null,
-      h('thead', null, h('tr', null, ['頻道', '曲風', '創作者', '曲名', '長度', 'id'].map((t) => h('th', null, t)))),
-      h('tbody', null, ...tracks.map((t) => h('tr', null, h('td', null, chName(t.channel)), h('td', null, gName(t.genre)), h('td', null, t.artist), h('td', null, t.title), h('td', null, mmss(t.seconds)), h('td', { class: 'id' }, t.id))))));
+      h('thead', null, h('tr', null, ['頻道', '曲風', '創作者', '曲名', '特色標籤(播放器上顯示的)', '長度', 'id'].map((t) => h('th', null, t)))),
+      h('tbody', null, ...tracks.map((t) => h('tr', null, h('td', null, chName(t.channel)), h('td', null, gName(t.genre)), h('td', null, t.artist), h('td', null, t.title), h('td', null, tagCell(t)), h('td', null, mmss(t.seconds)), h('td', { class: 'id' }, t.id))))));
   return box;
 }
 

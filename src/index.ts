@@ -150,6 +150,58 @@ interface TrackerStore {
   updatedAt: number;
   data: unknown;
 }
+// ---------- 特色標籤:把「提示詞管理器的紀錄」對到歌曲 ----------
+// 你在 /tracker 把 Suno 的歌名填進「歌名」欄(多首用逗號隔開),網站就會依「歌名」找到那組提示詞用的各軸選項
+// (速度、主奏、場景…),顯示在播放器上。不用匯出、不用轉檔、也不用重新部署。
+// 只會用到各軸選項(picks);基底提示詞和備註都不會公開。
+const normTitle = (x: string) => x.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+const splitNames = (x: unknown) =>
+  String(x ?? "")
+    .split(/[,\uFF0C\u3001;\uFF1B\n]+/)
+    .map((n) => n.trim())
+    .filter(Boolean);
+interface KeptRec {
+  channel: string;
+  picks: Record<string, string>;
+  at: number;
+}
+let tagIndex: { at: number; map: Map<string, KeptRec[]> } | null = null;
+const TAG_TTL_MS = 60_000; // 管理員改了歌名,最多一分鐘後出現在播放器上
+
+async function tagIndexFor(env: Env): Promise<Map<string, KeptRec[]>> {
+  if (tagIndex && Date.now() - tagIndex.at < TAG_TTL_MS) return tagIndex.map;
+  const stored = (await env.USERS.get(TRACKER_KEY, "json")) as TrackerStore | null;
+  const log = ((stored?.data as { log?: unknown[] } | undefined)?.log ?? []) as {
+    channel?: string;
+    picks?: Record<string, string>;
+    status?: string;
+    title?: string;
+    createdAt?: string;
+  }[];
+  const map = new Map<string, KeptRec[]>();
+  for (const r of log) {
+    if (r.status !== "kept" || !r.picks) continue; // 只有「留下」的才算
+    for (const name of splitNames(r.title)) {
+      const k = normTitle(name);
+      if (!k) continue;
+      const list = map.get(k) ?? [];
+      list.push({ channel: r.channel ?? "", picks: r.picks, at: Date.parse(r.createdAt ?? "") || 0 });
+      map.set(k, list);
+    }
+  }
+  tagIndex = { at: Date.now(), map };
+  return map;
+}
+
+/** 這首歌的特色標籤:曲目資料自帶的優先;否則用歌名去對提示詞紀錄(同頻道的優先、較新的優先)。對不到回 null。 */
+async function tagsFor(env: Env, t: CatalogTrack): Promise<Record<string, string> | null> {
+  if (t.tags) return t.tags;
+  const hit = (await tagIndexFor(env)).get(normTitle(t.title ?? ""));
+  if (!hit?.length) return null;
+  const same = hit.filter((h) => h.channel === (t.channel ?? ""));
+  return (same.length ? same : hit).slice().sort((a, b) => b.at - a.at)[0].picks;
+}
+
 /** 回傳 session;沒登入 → 401,登入但不是管理員 → 403 */
 async function adminSession(request: Request, env: Env): Promise<{ email: string } | Response> {
   const s = await getSession(request, env);
@@ -176,6 +228,7 @@ async function trackerApi(request: Request, env: Env): Promise<Response> {
     if ((stored?.version ?? 0) !== body.version) return json({ error: "資料已在別處更新,請重新整理", version: stored?.version ?? 0 }, 409);
     const next: TrackerStore = { version: (stored?.version ?? 0) + 1, updatedAt: Date.now(), data: body.data };
     await env.USERS.put(TRACKER_KEY, JSON.stringify(next));
+    tagIndex = null;
     return json({ version: next.version, updatedAt: next.updatedAt });
   }
   return json({ error: "method not allowed" }, 405);
@@ -189,15 +242,18 @@ async function libraryApi(request: Request, env: Env): Promise<Response> {
   return json({
     channels,
     genres: CHANNELS_CFG.genres,
-    tracks: TRACKS.map((t) => ({
-      id: t.id,
-      title: t.title ?? t.id,
-      artist: t.artist ?? "",
-      kind: t.kind ?? "music",
-      channel: t.channel ?? (t.kind === "show" ? "" : "demo"),
-      genre: t.genre ?? "",
-      seconds: Math.round(t.totalDuration),
-    })),
+    tracks: await Promise.all(
+      TRACKS.map(async (t) => ({
+        id: t.id,
+        title: t.title ?? t.id,
+        artist: t.artist ?? "",
+        kind: t.kind ?? "music",
+        channel: t.channel ?? (t.kind === "show" ? "" : "demo"),
+        genre: t.genre ?? "",
+        seconds: Math.round(t.totalDuration),
+        tags: await tagsFor(env, t),
+      })),
+    ),
   });
 }
 
@@ -228,10 +284,10 @@ export default {
             channel: t.channel ?? "",
             seconds: Math.round(t.totalDuration),
             segments: t.segments.map((x) => [x.file, x.duration]), // 播放器用來算「這首歌播到哪」
-            tags: t.tags ?? null,
+            tags: await tagsFor(env, t),
           },
           200,
-          { "cache-control": "public, max-age=86400" },
+          { "cache-control": "public, max-age=300" },
         );
       }
 

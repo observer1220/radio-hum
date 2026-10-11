@@ -67,7 +67,7 @@
     key,
     onStatus: (msg) => { const s = $('sub'); s.textContent = msg; s.classList.toggle('err', /lost|not support|again/i.test(msg)); $('play').classList.toggle('loading', /connecting|loading/i.test(msg)); },
     onTrack: (info) => {
-      const tags = info.tags ? Object.values(info.tags).filter((v) => v && v !== '—').slice(0, 3).join(' · ') : '';
+      const tags = info.tags ? Object.values(info.tags).filter((v) => v && v !== '—').slice(0, 3).map((v) => String(v).replace(/\bbpm\b/i, 'BPM')).join(' · ') : '';
       $('sub').textContent = tags || [info.title, info.artist].filter(Boolean).join(' · ');
     },
     onDenied: () => { $('title').textContent = t('cannotPlay'); const s = $('sub'); s.textContent = t('cannotPlayWhy'); s.classList.add('err'); $('play').classList.remove('loading'); },

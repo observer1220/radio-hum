@@ -4,7 +4,8 @@
   const trackCache = {};
   async function trackInfo(id) {
     if (!trackCache[id]) {
-      trackCache[id] = fetch('/api/track/' + encodeURIComponent(id))
+      // ?v=2:舊版把這支 API 的回應設成快取 24 小時;換個網址,已經載入過的訪客才不會拿到舊的(沒有標籤的)資料
+      trackCache[id] = fetch('/api/track/' + encodeURIComponent(id) + '?v=2')
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null);
     }

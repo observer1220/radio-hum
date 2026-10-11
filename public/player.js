@@ -82,17 +82,18 @@
   // ---------- 這首歌的「特色」 ----------
   // tags 是生成這首歌時的提示詞各軸選項(例如 速度:72 bpm、場景:rainy window)。沒有的話就顯示曲名。
   const AXIS = { '速度': 'Tempo', '主奏': 'Lead', '風格偏向': 'Style', '場景': 'Scene', '點綴音': 'Texture', '質感': 'Texture', '結構': 'Structure', '調性氣質': 'Mood', '情緒': 'Mood' };
-  const tagLine = (info) => (info && info.tags ? Object.values(info.tags).filter((v) => v && v !== '—').slice(0, 3).join(' · ') : '');
+  const pretty = (v) => String(v).replace(/\bbpm\b/i, 'BPM');
+  const tagLine = (info) => (info && info.tags ? Object.values(info.tags).filter((v) => v && v !== '—').slice(0, 3).map(pretty).join(' · ') : '');
   function renderTrack() {
     const tr = state.track;
     if (!tr) return;
     const line = tagLine(tr.info);
-    $('sub').textContent = line || [tr.info.title, tr.info.artist].filter(Boolean).join(' · ');
+    $('sub').textContent = line || [tr.info.title, tr.info.artist].filter(Boolean).join(' · '); // 有特色標籤就只顯示標籤,不顯示歌名
     const hasRecipe = !!tr.info.tags;
     $('btn-recipe').classList.toggle('hidden', !hasRecipe);
     if (hasRecipe) {
       $('recipe').replaceChildren(
-        ...Object.entries(tr.info.tags).map(([k, v]) => el('div', {}, el('span', {}, AXIS[k] || k), el('span', {}, v))),
+        ...Object.entries(tr.info.tags).map(([k, v]) => el('div', {}, el('span', {}, AXIS[k] || k), el('span', {}, pretty(v)))),
         el('small', {}, t('recipeNote')));
     } else {
       $('recipe').classList.remove('on'); $('btn-recipe').classList.remove('on');
