@@ -1,4 +1,4 @@
-name = "cloudflare-radio"
+name = "radio" # 必須和 Cloudflare 上的 Worker 名稱一致(網址是 radio.observer1220.workers.dev)。名稱不一致時,--direct 會另外建立一個新的 Worker
 main = "src/index.ts"
 compatibility_date = "2026-01-01"
 

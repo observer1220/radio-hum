@@ -52,6 +52,7 @@ function convert(src, dir) {
 const meta = readJson(META_FILE, {});
 const catalog = readJson(CATALOG, { tracks: [] });
 const byId = new Map(catalog.tracks.map((t) => [t.id, t]));
+const idByLowerSource = new Map(catalog.tracks.filter((t) => t.source).map((t) => [t.source.toLowerCase(), t.id]));
 const seenSources = new Set();
 let converted = 0;
 let skipped = 0;
@@ -82,7 +83,9 @@ for (const top of fs.readdirSync(LIB).sort()) {
     const genre = kind === "music" && f.rel.length > 1 ? slug(f.rel[0]) : undefined;
     seenSources.add(rel);
 
-    const id = `${kind}-${crypto.createHash("sha1").update(rel).digest("hex").slice(0, 8)}`;
+    // id 由「相對路徑」算出來。為了讓只改大小寫的改名(Windows 檔案系統不分大小寫)不會被當成另一首新歌、
+    // 重新轉檔又重複上傳,如果曲庫裡已經有「路徑相同、只差大小寫」的曲目,就沿用它原本的 id。
+    const id = idByLowerSource.get(rel.toLowerCase()) ?? `${kind}-${crypto.createHash("sha1").update(rel).digest("hex").slice(0, 8)}`;
     const outDir = path.join(OUT, id);
     const st = fs.statSync(src);
     const stamp = `${st.size}-${Math.floor(st.mtimeMs)}`;
